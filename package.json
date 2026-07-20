@@ -1,29 +1,14 @@
 {
   "name": "battle-tanks-royale",
   "version": "12.0.0",
-  "description": "🎮 Battle Tanks Royale - Complete Production Ready Game Server",
+  "description": "🎮 Battle Tanks Royale - Game Server",
   "main": "server.js",
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
+    "node": ">=18.0.0"
   },
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js",
-    "prod": "NODE_ENV=production node server.js",
-    "test": "jest --coverage",
-    "test:watch": "jest --watch",
-    "lint": "eslint . --ext .js",
-    "lint:fix": "eslint . --ext .js --fix",
-    "format": "prettier --write .",
-    "db:migrate": "node scripts/migrate.js",
-    "db:seed": "node scripts/seed.js",
-    "db:reset": "node scripts/reset.js",
-    "logs": "tail -f logs/combined.log",
-    "logs:error": "tail -f logs/error.log",
-    "logs:audit": "tail -f logs/audit.log",
-    "clean": "rm -rf logs/*.log && rm -rf node_modules/.cache",
-    "postinstall": "node scripts/postinstall.js"
+    "dev": "nodemon server.js"
   },
   "dependencies": {
     "compression": "^1.7.4",
@@ -39,104 +24,6 @@
     "winston": "^3.11.0"
   },
   "devDependencies": {
-    "eslint": "^8.51.0",
-    "eslint-config-prettier": "^9.0.0",
-    "eslint-plugin-node": "^11.1.0",
-    "jest": "^29.7.0",
-    "nodemon": "^3.0.1",
-    "prettier": "^3.0.3",
-    "supertest": "^6.3.3"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "coveragePathIgnorePatterns": [
-      "/node_modules/",
-      "/logs/",
-      "/scripts/"
-    ],
-    "collectCoverageFrom": [
-      "*.js",
-      "!server.js"
-    ],
-    "coverageThreshold": {
-      "global": {
-        "branches": 70,
-        "functions": 70,
-        "lines": 70,
-        "statements": 70
-      }
-    }
-  },
-  "eslintConfig": {
-    "env": {
-      "node": true,
-      "es2021": true,
-      "jest": true
-    },
-    "extends": [
-      "eslint:recommended",
-      "plugin:node/recommended",
-      "prettier"
-    ],
-    "parserOptions": {
-      "ecmaVersion": 2021,
-      "sourceType": "module"
-    },
-    "rules": {
-      "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
-      "no-console": ["warn", { "allow": ["warn", "error", "info"] }],
-      "node/no-unpublished-require": "off",
-      "node/no-unsupported-features/es-syntax": "off"
-    }
-  },
-  "prettier": {
-    "singleQuote": true,
-    "trailingComma": "es5",
-    "tabWidth": 2,
-    "semi": true,
-    "printWidth": 100,
-    "bracketSpacing": true,
-    "arrowParens": "always",
-    "endOfLine": "lf"
-  },
-  "nodemonConfig": {
-    "ignore": [
-      "logs/*",
-      "node_modules/*",
-      "*.test.js",
-      "coverage/*"
-    ],
-    "watch": [
-      "server.js",
-      "src/"
-    ],
-    "ext": "js,json",
-    "delay": 1000,
-    "env": {
-      "NODE_ENV": "development",
-      "PORT": 3000
-    }
-  },
-  "keywords": [
-    "game",
-    "battle-royale",
-    "tanks",
-    "multiplayer",
-    "websocket",
-    "real-time",
-    "threejs",
-    "gaming",
-    "mmo",
-    "battle-tanks"
-  ],
-  "author": "Battle Tanks Royale Team",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/yourusername/battle-tanks-royale.git"
-  },
-  "bugs": {
-    "url": "https://github.com/yourusername/battle-tanks-royale/issues"
-  },
-  "homepage": "https://github.com/yourusername/battle-tanks-royale#readme"
+    "nodemon": "^3.0.1"
+  }
 }
