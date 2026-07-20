@@ -1,7 +1,7 @@
 // ============================================
 // 🚀 خادم Battle Tanks - النسخة النهائية
 // ============================================
-// نظام: غرفة واحدة من كل نوع
+// نظام: غرفة واحدة من كل نوع (المبتدئين، المتقدمين، المحترفين)
 // عند اكتمال الغرفة → تبدأ المعركة → تنشأ غرفة جديدة
 // ============================================
 
@@ -70,7 +70,7 @@ pool.on('error', (err) => {
 });
 
 // ============================================
-// 🔒 أقفال الطوابير
+// 🔒 أقفال الطوابير (Mutex)
 // ============================================
 const mutexes = new Map();
 
@@ -82,7 +82,7 @@ function getMutex(key) {
 }
 
 // ============================================
-// 🏠 إعدادات الغرف - نوع واحد فقط من كل نوع
+// 🏠 إعدادات الغرف
 // ============================================
 const ROOM_TYPES = [
     { name: 'غرفة المبتدئين', maxSeats: 2, seatPrice: 1, prefix: 'beginner' },
@@ -90,25 +90,23 @@ const ROOM_TYPES = [
     { name: 'غرفة المحترفين', maxSeats: 6, seatPrice: 10, prefix: 'pro' }
 ];
 
-// الكاش - غرفة واحدة من كل نوع
-const roomsCache = new Map(); // roomId -> room data
-const playerCache = new Map(); // socketId -> player data
-const gameTimers = new Map(); // roomId -> timer
-
-// قائمة المعرفات النشطة للغرف
+// الكاش
+const roomsCache = new Map();
+const playerCache = new Map();
+const gameTimers = new Map();
 const activeRoomIds = new Set();
 
 // ============================================
-// 🗄️ تهيئة قاعدة البيانات
+// 🗄️ تهيئة قاعدة البيانات (بالترتيب الصحيح)
 // ============================================
 const INIT_SQL = `
--- جدول المستخدمين
+-- 1. جدول المستخدمين
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     telegram_id BIGINT UNIQUE NOT NULL,
     username VARCHAR(100),
     email VARCHAR(255) UNIQUE,
-    balance INTEGER DEFAULT ${DEFAULT_BALANCE} NOT NULL,
+    balance INTEGER DEFAULT 100 NOT NULL,
     is_admin BOOLEAN DEFAULT FALSE,
     games_played INTEGER DEFAULT 0,
     wins INTEGER DEFAULT 0,
@@ -117,7 +115,7 @@ CREATE TABLE IF NOT EXISTS users (
     last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- جدول الغرف
+-- 2. جدول الغرف
 CREATE TABLE IF NOT EXISTS rooms (
     id SERIAL PRIMARY KEY,
     room_id VARCHAR(50) UNIQUE NOT NULL,
@@ -132,11 +130,11 @@ CREATE TABLE IF NOT EXISTS rooms (
     version INTEGER DEFAULT 1
 );
 
--- جدول اللاعبين في الغرف
+-- 3. جدول اللاعبين في الغرف
 CREATE TABLE IF NOT EXISTS room_players (
     id SERIAL PRIMARY KEY,
-    room_id VARCHAR(50) REFERENCES rooms(room_id) ON DELETE CASCADE,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    room_id VARCHAR(50) NOT NULL,
+    user_id INTEGER NOT NULL,
     socket_id VARCHAR(100),
     team INTEGER DEFAULT 1 CHECK (team IN (1, 2)),
     health INTEGER DEFAULT 100 CHECK (health >= 0 AND health <= 100),
@@ -149,36 +147,80 @@ CREATE TABLE IF NOT EXISTS room_players (
     UNIQUE(room_id, user_id)
 );
 
--- جدول المعاملات
+-- 4. إضافة المفاتيح الخارجية
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints 
+                   WHERE constraint_name = 'fk_room_players_room') THEN
+        ALTER TABLE room_players ADD CONSTRAINT fk_room_players_room 
+            FOREIGN KEY (room_id) REFERENCES rooms(room_id) ON DELETE CASCADE;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints 
+                   WHERE constraint_name = 'fk_room_players_user') THEN
+        ALTER TABLE room_players ADD CONSTRAINT fk_room_players_user 
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+    END IF;
+END $$;
+
+-- 5. جدول المعاملات
 CREATE TABLE IF NOT EXISTS transactions (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     amount INTEGER NOT NULL,
     balance_after INTEGER NOT NULL,
-    type VARCHAR(30) NOT NULL,
+    type VARCHAR(30) NOT NULL CHECK (type IN ('deposit', 'withdraw', 'game_fee', 'reward', 'admin', 'refund')),
     description TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- جدول المباريات
+-- 6. جدول المباريات
 CREATE TABLE IF NOT EXISTS games (
     id SERIAL PRIMARY KEY,
     room_id VARCHAR(50) REFERENCES rooms(room_id) ON DELETE CASCADE,
-    winner_team INTEGER,
-    winner_user_id INTEGER REFERENCES users(id),
+    winner_team INTEGER CHECK (winner_team IN (1, 2, 0)),
+    winner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     duration INTEGER,
     total_players INTEGER DEFAULT 0,
     started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     ended_at TIMESTAMP WITH TIME ZONE,
-    status VARCHAR(20) DEFAULT 'started'
+    status VARCHAR(20) DEFAULT 'started' CHECK (status IN ('started', 'ended', 'aborted'))
+);
+
+-- 7. جدول الجلسات
+CREATE TABLE IF NOT EXISTS sessions (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    socket_id VARCHAR(100),
+    session_token VARCHAR(255) UNIQUE,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+-- 8. جدول سجلات التدقيق
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    action VARCHAR(100) NOT NULL,
+    details JSONB,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- المؤشرات
 CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_rooms_status ON rooms(status);
+CREATE INDEX IF NOT EXISTS idx_rooms_type_name ON rooms(type_name);
 CREATE INDEX IF NOT EXISTS idx_room_players_room_id ON room_players(room_id);
 CREATE INDEX IF NOT EXISTS idx_room_players_user_id ON room_players(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_games_room_id ON games(room_id);
+CREATE INDEX IF NOT EXISTS idx_games_status ON games(status);
 
 -- دالة تحديث الوقت
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -197,7 +239,7 @@ CREATE TRIGGER update_users_updated_at
 `;
 
 // ============================================
-// 🏠 دوال الغرف - نظام غرفة واحدة من كل نوع
+// 🏠 دوال الغرف
 // ============================================
 
 // تهيئة الغرف - غرفة واحدة من كل نوع
@@ -206,7 +248,6 @@ async function initRooms() {
         const roomId = `${type.prefix}_room_1`;
         const roomName = `${type.name}`;
         
-        // التحقق من وجود الغرفة
         const result = await pool.query(
             'SELECT * FROM rooms WHERE room_id = $1',
             [roomId]
@@ -220,7 +261,6 @@ async function initRooms() {
             );
             console.log(`🏠 Created room: ${roomName}`);
         } else {
-            // تحديث الإعدادات إذا تغيرت
             await pool.query(
                 `UPDATE rooms 
                  SET max_seats = $1, seat_price = $2, status = 'waiting'
@@ -230,7 +270,6 @@ async function initRooms() {
             console.log(`🔄 Updated room: ${roomName}`);
         }
         
-        // تخزين في الكاش
         roomsCache.set(roomId, {
             id: roomId,
             name: roomName,
@@ -247,17 +286,13 @@ async function initRooms() {
     console.log(`✅ ${roomsCache.size} rooms initialized (one of each type)`);
 }
 
-// إنشاء غرفة جديدة بعد انتهاء المعركة
+// إنشاء غرفة جديدة
 async function createNewRoom(typeName) {
     const type = ROOM_TYPES.find(t => t.name === typeName);
-    if (!type) {
-        console.error(`❌ Room type not found: ${typeName}`);
-        return null;
-    }
+    if (!type) return null;
     
     const mutex = getMutex(`create_room_${typeName}`);
     return await mutex.runExclusive(async () => {
-        // البحث عن رقم الغرفة التالي
         const result = await pool.query(
             `SELECT room_id FROM rooms 
              WHERE type_name = $1 AND room_id LIKE $2
@@ -269,25 +304,19 @@ async function createNewRoom(typeName) {
         if (result.rows.length > 0) {
             const lastId = result.rows[0].room_id;
             const match = lastId.match(/_room_(\d+)$/);
-            if (match) {
-                nextNumber = parseInt(match[1]) + 1;
-            }
+            if (match) nextNumber = parseInt(match[1]) + 1;
         }
         
         const roomId = `${type.prefix}_room_${nextNumber}`;
         const roomName = `${type.name}`;
         
-        // حذف الغرفة القديمة (إذا كانت موجودة)
         await pool.query('DELETE FROM rooms WHERE room_id = $1', [roomId]);
-        
-        // إنشاء الغرفة الجديدة
         await pool.query(
             `INSERT INTO rooms (room_id, room_name, max_seats, seat_price, type_name, status)
              VALUES ($1, $2, $3, $4, $5, 'waiting')`,
             [roomId, roomName, type.maxSeats, type.seatPrice, type.name]
         );
         
-        // تحديث الكاش
         const newRoom = {
             id: roomId,
             name: roomName,
@@ -299,7 +328,6 @@ async function createNewRoom(typeName) {
             version: Date.now()
         };
         
-        // إزالة الغرفة القديمة من الكاش
         for (const [oldId, room] of roomsCache) {
             if (room.typeName === typeName && oldId !== roomId) {
                 roomsCache.delete(oldId);
@@ -309,18 +337,14 @@ async function createNewRoom(typeName) {
         
         roomsCache.set(roomId, newRoom);
         activeRoomIds.add(roomId);
-        
-        console.log(`🔄 New room created: ${roomName} (${roomId})`);
         return newRoom;
     });
 }
 
-// الحصول على الغرف المتاحة (غرفة واحدة من كل نوع)
+// الحصول على الغرف المتاحة
 async function getAvailableRooms() {
     const rooms = [];
-    
     for (const type of ROOM_TYPES) {
-        // البحث عن غرفة من هذا النوع في حالة انتظار
         const result = await pool.query(
             `SELECT r.*, COUNT(rp.id) as player_count
              FROM rooms r
@@ -347,7 +371,6 @@ async function getAvailableRooms() {
                 isFull: playerCount >= row.max_seats
             });
         } else {
-            // إذا لم توجد غرفة، قم بإنشائها
             const newRoom = await createNewRoom(type.name);
             if (newRoom) {
                 rooms.push({
@@ -364,7 +387,6 @@ async function getAvailableRooms() {
             }
         }
     }
-    
     return rooms;
 }
 
@@ -409,7 +431,6 @@ async function joinRoom(socket, userId, roomId) {
     
     return await roomMutex.runExclusive(async () => {
         return await userMutex.runExclusive(async () => {
-            // التحقق من وجود اللاعب في الغرفة
             const existing = await pool.query(
                 'SELECT * FROM room_players WHERE room_id = $1 AND user_id = $2',
                 [roomId, userId]
@@ -418,7 +439,6 @@ async function joinRoom(socket, userId, roomId) {
                 return { success: false, error: 'أنت بالفعل في هذه الغرفة' };
             }
             
-            // جلب الغرفة
             const roomResult = await pool.query(
                 'SELECT * FROM rooms WHERE room_id = $1 AND status = $2',
                 [roomId, 'waiting']
@@ -428,7 +448,6 @@ async function joinRoom(socket, userId, roomId) {
             }
             const room = roomResult.rows[0];
             
-            // التحقق من العدد
             const countResult = await pool.query(
                 'SELECT COUNT(*) FROM room_players WHERE room_id = $1',
                 [roomId]
@@ -438,7 +457,6 @@ async function joinRoom(socket, userId, roomId) {
                 return { success: false, error: 'الغرفة مكتملة' };
             }
             
-            // التحقق من الرصيد
             const userResult = await pool.query(
                 'SELECT balance FROM users WHERE id = $1',
                 [userId]
@@ -450,13 +468,11 @@ async function joinRoom(socket, userId, roomId) {
                 return { success: false, error: `رصيد غير كافٍ! المطلوب: ${seatPrice}$` };
             }
             
-            // خصم الرصيد
             await pool.query(
                 'UPDATE users SET balance = balance - $1 WHERE id = $2',
                 [seatPrice, userId]
             );
             
-            // تسجيل المعاملة
             await pool.query(
                 `INSERT INTO transactions (user_id, amount, balance_after, type, description)
                  SELECT $1, -$2, balance, 'game_fee', 'رسوم دخول الغرفة'
@@ -464,26 +480,20 @@ async function joinRoom(socket, userId, roomId) {
                 [userId, seatPrice]
             );
             
-            // إضافة اللاعب
             await pool.query(
                 `INSERT INTO room_players (room_id, user_id, socket_id, paid_amount, team, health)
                  VALUES ($1, $2, $3, $4, $5, $6)`,
                 [roomId, userId, socket.id, seatPrice, 1, 100]
             );
             
-            // تحديث الكاش
             const newCount = await pool.query(
                 'SELECT COUNT(*) FROM room_players WHERE room_id = $1',
                 [roomId]
             );
             const newPlayerCount = parseInt(newCount.rows[0].count);
             
-            // التحقق من اكتمال الغرفة
             const isFull = newPlayerCount >= room.max_seats;
-            
-            // إذا اكتملت الغرفة، ابدأ المعركة فوراً
             if (isFull) {
-                // تأخير بسيط لضمان اتصال الجميع
                 setTimeout(() => startGame(roomId), 1000);
             }
             
@@ -506,31 +516,21 @@ async function startGame(roomId) {
     const mutex = getMutex(`room_${roomId}`);
     
     await mutex.runExclusive(async () => {
-        // التحقق من أن الغرفة لا تزال في حالة انتظار
         const roomCheck = await pool.query(
             'SELECT status, max_seats, type_name FROM rooms WHERE room_id = $1',
             [roomId]
         );
-        if (roomCheck.rows.length === 0) {
-            console.log(`⚠️ Room ${roomId} not found`);
-            return;
-        }
-        if (roomCheck.rows[0].status !== 'waiting') {
-            console.log(`⚠️ Room ${roomId} is not waiting, status: ${roomCheck.rows[0].status}`);
+        if (roomCheck.rows.length === 0 || roomCheck.rows[0].status !== 'waiting') {
             return;
         }
         
         const typeName = roomCheck.rows[0].type_name;
         
-        // تحديث حالة الغرفة
         await pool.query(
-            `UPDATE rooms 
-             SET status = 'active', start_time = CURRENT_TIMESTAMP 
-             WHERE room_id = $1`,
+            `UPDATE rooms SET status = 'active', start_time = CURRENT_TIMESTAMP WHERE room_id = $1`,
             [roomId]
         );
         
-        // جلب اللاعبين
         const playersResult = await pool.query(`
             SELECT rp.*, u.username, u.telegram_id
             FROM room_players rp
@@ -544,7 +544,6 @@ async function startGame(roomId) {
             { x: 120, z: 80, team: 2 }
         ];
         
-        // تعيين الفرق والمواقع
         for (let i = 0; i < players.length; i++) {
             const pos = positions[i % positions.length];
             await pool.query(
@@ -555,11 +554,7 @@ async function startGame(roomId) {
             );
         }
         
-        // إرسال إشعار بدء اللعبة لكل لاعب
-        const playersData = players.map(p => ({ 
-            userId: p.user_id, 
-            team: p.team 
-        }));
+        const playersData = players.map(p => ({ userId: p.user_id, team: p.team }));
         
         for (const player of players) {
             const socket = io.sockets.sockets.get(player.socket_id);
@@ -577,65 +572,50 @@ async function startGame(roomId) {
         
         console.log(`🎮 Game started: ${roomId} (${players.length} players) - ${typeName}`);
         
-        // تسجيل المباراة
         await pool.query(
             `INSERT INTO games (room_id, total_players, status, started_at)
              VALUES ($1, $2, 'started', CURRENT_TIMESTAMP)`,
             [roomId, players.length]
         );
         
-        // إزالة المؤقت القديم إن وجد
         if (gameTimers.has(roomId)) {
             clearTimeout(gameTimers.get(roomId));
             gameTimers.delete(roomId);
         }
         
-        // تعيين مؤقت إنهاء اللعبة
         const timer = setTimeout(() => endGame(roomId), (GAME_DURATION || 300) * 1000);
         gameTimers.set(roomId, timer);
         
-        // تحديث قائمة الغرف المتاحة (إزالة الغرفة النشطة)
         const rooms = await getAvailableRooms();
         io.emit('rooms_list', { rooms });
     });
 }
 
-// إنهاء اللعبة
+// إنهاء المعركة
 async function endGame(roomId) {
     const mutex = getMutex(`room_${roomId}`);
     
     await mutex.runExclusive(async () => {
-        // التحقق من أن الغرفة لا تزال نشطة
         const roomCheck = await pool.query(
             'SELECT status, type_name FROM rooms WHERE room_id = $1',
             [roomId]
         );
-        if (roomCheck.rows.length === 0) {
-            console.log(`⚠️ Room ${roomId} not found`);
-            return;
-        }
-        if (roomCheck.rows[0].status !== 'active') {
-            console.log(`⚠️ Room ${roomId} is not active`);
+        if (roomCheck.rows.length === 0 || roomCheck.rows[0].status !== 'active') {
             return;
         }
         
         const typeName = roomCheck.rows[0].type_name;
         
-        // إزالة المؤقت
         if (gameTimers.has(roomId)) {
             clearTimeout(gameTimers.get(roomId));
             gameTimers.delete(roomId);
         }
         
-        // تحديث حالة الغرفة
         await pool.query(
-            `UPDATE rooms 
-             SET status = 'ended', end_time = CURRENT_TIMESTAMP 
-             WHERE room_id = $1`,
+            `UPDATE rooms SET status = 'ended', end_time = CURRENT_TIMESTAMP WHERE room_id = $1`,
             [roomId]
         );
         
-        // جلب اللاعبين الأحياء
         const aliveResult = await pool.query(`
             SELECT rp.*, u.id as user_id, u.balance
             FROM room_players rp
@@ -647,12 +627,10 @@ async function endGame(roomId) {
         let winnerTeam = null;
         let winnerUserId = null;
         
-        // تحديد الفائز
         if (alive.length === 1) {
             winnerTeam = alive[0].team;
             winnerUserId = alive[0].user_id;
         } else if (alive.length >= 2) {
-            // مقارنة الصحة بين آخر لاعبين
             const p1 = alive[0], p2 = alive[1];
             if (p1.health > p2.health) {
                 winnerTeam = p1.team;
@@ -663,7 +641,6 @@ async function endGame(roomId) {
             }
         }
         
-        // تحديث المباراة
         await pool.query(
             `UPDATE games 
              SET winner_team = $1, winner_user_id = $2, 
@@ -673,7 +650,6 @@ async function endGame(roomId) {
             [winnerTeam || 0, winnerUserId || null, roomId]
         );
         
-        // توزيع المكافآت
         const rewardAmount = parseInt(REWARD_AMOUNT) || 10;
         for (const player of alive) {
             const isWinner = (player.team === winnerTeam && winnerTeam !== null);
@@ -682,8 +658,7 @@ async function endGame(roomId) {
             if (reward > 0) {
                 await pool.query(
                     `UPDATE users 
-                     SET balance = balance + $1, games_played = games_played + 1,
-                         wins = wins + 1
+                     SET balance = balance + $1, games_played = games_played + 1, wins = wins + 1
                      WHERE id = $2`,
                     [reward, player.user_id]
                 );
@@ -701,7 +676,6 @@ async function endGame(roomId) {
                 );
             }
             
-            // إرسال إشعار النهاية للاعب
             const socket = io.sockets.sockets.get(player.socket_id);
             if (socket) {
                 socket.emit('game_ended', {
@@ -718,25 +692,19 @@ async function endGame(roomId) {
         
         console.log(`🏆 Game ended: ${roomId}, winner: ${winnerTeam || 'draw'} (${typeName})`);
         
-        // حذف اللاعبين من الغرفة
         await pool.query('DELETE FROM room_players WHERE room_id = $1', [roomId]);
-        
-        // حذف الغرفة المنتهية
         await pool.query('DELETE FROM rooms WHERE room_id = $1', [roomId]);
         
-        // إزالة من الكاش
         roomsCache.delete(roomId);
         activeRoomIds.delete(roomId);
         
         console.log(`🧹 Room ${roomId} deleted`);
         
-        // إنشاء غرفة جديدة من نفس النوع
         const newRoom = await createNewRoom(typeName);
         if (newRoom) {
             console.log(`🔄 New room created: ${newRoom.name} (${newRoom.id})`);
         }
         
-        // تحديث قائمة الغرف لجميع اللاعبين
         const rooms = await getAvailableRooms();
         io.emit('rooms_list', { rooms });
     });
@@ -746,7 +714,6 @@ async function endGame(roomId) {
 // 🌐 HTTP Routes
 // ============================================
 
-// الصفحات
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -759,7 +726,6 @@ app.get('/game', (req, res) => {
     res.sendFile(path.join(__dirname, 'game.html'));
 });
 
-// الصحة
 app.get('/health', async (req, res) => {
     try {
         await pool.query('SELECT 1');
@@ -775,7 +741,6 @@ app.get('/health', async (req, res) => {
     }
 });
 
-// الحصول على الغرف المتاحة
 app.get('/api/rooms', async (req, res) => {
     try {
         const rooms = await getAvailableRooms();
@@ -785,7 +750,6 @@ app.get('/api/rooms', async (req, res) => {
     }
 });
 
-// الحصول على معلومات المستخدم
 app.get('/api/user/:telegramId', async (req, res) => {
     try {
         const user = await getUser(req.params.telegramId);
@@ -802,7 +766,6 @@ app.get('/api/user/:telegramId', async (req, res) => {
 // 🛠️ API Routes - الإدارة
 // ============================================
 
-// إحصائيات المشرف
 app.get('/api/admin/stats', async (req, res) => {
     try {
         if (req.query.adminToken !== ADMIN_SECRET) {
@@ -822,7 +785,6 @@ app.get('/api/admin/stats', async (req, res) => {
     }
 });
 
-// إدارة الأرصدة
 app.post('/api/admin/balance', async (req, res) => {
     try {
         const { adminToken, userId, amount, action } = req.body;
@@ -839,10 +801,7 @@ app.post('/api/admin/balance', async (req, res) => {
         const type = action === 'deposit' ? 'deposit' : 'withdraw';
         
         const result = await pool.query(
-            `UPDATE users 
-             SET balance = balance ${sign} $1 
-             WHERE telegram_id = $2 
-             RETURNING balance`,
+            `UPDATE users SET balance = balance ${sign} $1 WHERE telegram_id = $2 RETURNING balance`,
             [amount, userId]
         );
         
@@ -857,16 +816,12 @@ app.post('/api/admin/balance', async (req, res) => {
             [action === 'deposit' ? amount : -amount, type, `عملية ${action} بواسطة المشرف`, userId]
         );
         
-        res.json({ 
-            success: true, 
-            newBalance: result.rows[0].balance
-        });
+        res.json({ success: true, newBalance: result.rows[0].balance });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// تحديث إعدادات الغرف
 app.post('/api/admin/roomType', async (req, res) => {
     try {
         const { adminToken, typeName, maxSeats, seatPrice } = req.body;
@@ -878,14 +833,12 @@ app.post('/api/admin/roomType', async (req, res) => {
         const newMaxSeats = Math.max(2, Math.min(16, maxSeats || 2));
         const newSeatPrice = Math.max(1, Math.min(1000, seatPrice || 1));
         
-        // تحديث نوع الغرفة في ROOM_TYPES
         const type = ROOM_TYPES.find(t => t.name === typeName);
         if (type) {
             type.maxSeats = newMaxSeats;
             type.seatPrice = newSeatPrice;
         }
         
-        // تحديث الغرفة الحالية من هذا النوع
         for (const [id, room] of roomsCache) {
             if (room.typeName === typeName) {
                 room.maxSeats = newMaxSeats;
@@ -893,27 +846,19 @@ app.post('/api/admin/roomType', async (req, res) => {
                 roomsCache.set(id, room);
                 
                 await pool.query(
-                    `UPDATE rooms 
-                     SET max_seats = $1, seat_price = $2 
-                     WHERE room_id = $3`,
+                    `UPDATE rooms SET max_seats = $1, seat_price = $2 WHERE room_id = $3`,
                     [newMaxSeats, newSeatPrice, id]
                 );
                 break;
             }
         }
         
-        res.json({ 
-            success: true, 
-            message: `تم تحديث ${typeName}`,
-            maxSeats: newMaxSeats,
-            seatPrice: newSeatPrice
-        });
+        res.json({ success: true, message: `تم تحديث ${typeName}`, maxSeats: newMaxSeats, seatPrice: newSeatPrice });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// مسح جميع البيانات
 app.post('/api/admin/resetAll', async (req, res) => {
     try {
         const { adminToken } = req.body;
@@ -922,27 +867,16 @@ app.post('/api/admin/resetAll', async (req, res) => {
             return res.status(403).json({ success: false, error: 'Unauthorized' });
         }
         
-        // حذف جميع البيانات
         await pool.query('DELETE FROM room_players');
         await pool.query('DELETE FROM games');
         await pool.query('DELETE FROM transactions');
-        
-        // إعادة تعيين الغرف
+        await pool.query('UPDATE rooms SET status = $1, start_time = NULL, end_time = NULL', ['waiting']);
         await pool.query(
-            `UPDATE rooms SET status = 'waiting', start_time = NULL, end_time = NULL`
+            `UPDATE users SET balance = $1, games_played = 0, wins = 0,
+             is_admin = CASE WHEN telegram_id = $2 THEN true ELSE false END`,
+            [DEFAULT_BALANCE, ADMIN_TELEGRAM_ID]
         );
         
-        // إعادة تعيين المستخدمين
-        await pool.query(
-            `UPDATE users SET 
-             balance = ${DEFAULT_BALANCE}, 
-             games_played = 0, 
-             wins = 0,
-             is_admin = CASE WHEN telegram_id = $1 THEN true ELSE false END`,
-            [ADMIN_TELEGRAM_ID]
-        );
-        
-        // تنظيف الكاش
         playerCache.clear();
         for (const [id, room] of roomsCache) {
             room.status = 'waiting';
@@ -950,9 +884,7 @@ app.post('/api/admin/resetAll', async (req, res) => {
             roomsCache.set(id, room);
         }
         
-        // إعادة تهيئة الغرف
         await initRooms();
-        
         res.json({ success: true, message: 'تم مسح جميع البيانات' });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -973,14 +905,11 @@ const io = socketIo(server, {
 io.on('connection', (socket) => {
     console.log(`🔌 Connected: ${socket.id}`);
     
-    // Ping/Pong للحفاظ على الاتصال
     socket.on('ping', () => {
         socket.emit('pong', { timestamp: Date.now() });
     });
     
-    // ============================================
-    // 🔐 المصادقة
-    // ============================================
+    // المصادقة
     socket.on('auth', async (data) => {
         try {
             const { telegramId } = data || {};
@@ -1020,7 +949,6 @@ io.on('connection', (socket) => {
                 token: token
             });
             
-            // إرسال قائمة الغرف المتاحة
             const rooms = await getAvailableRooms();
             socket.emit('lobby_joined', { rooms });
             
@@ -1031,9 +959,7 @@ io.on('connection', (socket) => {
         }
     });
     
-    // ============================================
-    // 📋 اللوبي
-    // ============================================
+    // اللوبي
     socket.on('join_lobby', async () => {
         const player = playerCache.get(socket.id);
         if (!player) {
@@ -1054,9 +980,7 @@ io.on('connection', (socket) => {
         }
     });
     
-    // ============================================
-    // 🏠 الانضمام إلى غرفة
-    // ============================================
+    // الانضمام إلى غرفة
     socket.on('join_room', async (data) => {
         const player = playerCache.get(socket.id);
         if (!player) {
@@ -1091,13 +1015,9 @@ io.on('connection', (socket) => {
                 playersCount: result.playersCount,
                 maxSeats: result.maxSeats,
                 needed: result.needed,
-                isFull: result.isFull,
-                message: result.isFull 
-                    ? `✅ ${result.roomName} مكتملة! جاري بدء المعركة...`
-                    : `✅ تم الانضمام إلى ${result.roomName}\n👥 ${result.playersCount}/${result.maxSeats} لاعب`
+                isFull: result.isFull
             });
             
-            // إعلام الآخرين في الغرفة
             io.to(roomId).emit('player_joined', {
                 userId: player.userId,
                 username: player.username,
@@ -1106,7 +1026,6 @@ io.on('connection', (socket) => {
                 needed: result.needed
             });
             
-            // تحديث قائمة الغرف المتاحة
             const rooms = await getAvailableRooms();
             io.emit('rooms_list', { rooms });
             
@@ -1117,9 +1036,7 @@ io.on('connection', (socket) => {
         }
     });
     
-    // ============================================
-    // 🎮 أحداث اللعبة
-    // ============================================
+    // أحداث اللعبة
     socket.on('move', (data) => {
         const player = playerCache.get(socket.id);
         if (player && player.roomId) {
@@ -1188,7 +1105,6 @@ io.on('connection', (socket) => {
                         });
                     }
                     
-                    // التحقق من نهاية المعركة
                     const alive = await pool.query(
                         `SELECT COUNT(*) 
                          FROM room_players 
@@ -1355,6 +1271,3 @@ process.on('SIGTERM', async () => {
 // 🚀 بدء التشغيل
 // ============================================
 start();
-
-
-
