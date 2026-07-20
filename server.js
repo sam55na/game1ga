@@ -1,16 +1,17 @@
 // ============================================
-// 🚀 خادم Battle Tanks Royale - الإصدار النهائي
+// 🚀 خادم Battle Tanks Royale - الإصدار النهائي المحسن
 // ============================================
-// Version: 8.0.0
+// Version: 8.1.0
 // Auth: Telegram ID based
-// Database: PostgreSQL (Neon)
+// Database: PostgreSQL (Neon) with DATABASE_URL env
 // Features: 
 //   - نظام قفل متقدم (Advanced Lock System)
 //   - طوابير معالجة (Processing Queues)
 //   - منع التكرار والغش
-//   - معالجة أخطاء متينة
-//   - إعادة محاولة تلقائية
-//   - نظام مراقبة وتحليل
+//   - معالجة أخطاء متينة مع إعادة محاولة ذكية
+//   - إعادة محاولة تلقائية مع تأخير متزايد
+//   - نظام مراقبة وتحليل متقدم
+//   - صيانة ذاتية واسترداد تلقائي
 // ============================================
 
 const express = require('express');
@@ -22,7 +23,7 @@ const crypto = require('crypto');
 const EventEmitter = require('events');
 
 // ============================================
-// 📊 نظام المراقبة والتحليل
+// 📊 نظام المراقبة والتحليل المتقدم
 // ============================================
 class MonitoringSystem {
     constructor() {
@@ -31,10 +32,13 @@ class MonitoringSystem {
             requests: { total: 0, success: 0, error: 0, rate: 0 },
             games: { total: 0, active: 0, completed: 0 },
             errors: { total: 0, byType: {} },
-            performance: { avgResponseTime: 0, maxResponseTime: 0 }
+            performance: { avgResponseTime: 0, maxResponseTime: 0 },
+            database: { connected: false, reconnectAttempts: 0, lastError: null }
         };
         this.startTime = Date.now();
         this.requestTimestamps = [];
+        this.errorLogs = [];
+        this.maxErrorLogs = 100;
     }
 
     recordConnection(type) {
@@ -58,17 +62,14 @@ class MonitoringSystem {
         }
         
         this.requestTimestamps.push(Date.now());
-        // الاحتفاظ بآخر 1000 طلب فقط
         if (this.requestTimestamps.length > 1000) {
             this.requestTimestamps.shift();
         }
         
-        // حساب معدل الطلبات في آخر دقيقة
         const oneMinuteAgo = Date.now() - 60000;
         const recentRequests = this.requestTimestamps.filter(t => t > oneMinuteAgo);
         this.metrics.requests.rate = recentRequests.length / 60;
 
-        // تحديث أداء الاستجابة
         if (duration) {
             const avg = (this.metrics.performance.avgResponseTime * 0.9) + (duration * 0.1);
             this.metrics.performance.avgResponseTime = Math.round(avg);
@@ -78,12 +79,34 @@ class MonitoringSystem {
         }
     }
 
-    recordError(errorType) {
+    recordError(errorType, errorDetails = null) {
         this.metrics.errors.total++;
         if (!this.metrics.errors.byType[errorType]) {
             this.metrics.errors.byType[errorType] = 0;
         }
         this.metrics.errors.byType[errorType]++;
+        
+        // تسجيل الخطأ للتحليل
+        const errorLog = {
+            type: errorType,
+            timestamp: Date.now(),
+            details: errorDetails
+        };
+        this.errorLogs.push(errorLog);
+        if (this.errorLogs.length > this.maxErrorLogs) {
+            this.errorLogs.shift();
+        }
+    }
+
+    recordDatabaseStatus(connected, error = null) {
+        this.metrics.database.connected = connected;
+        if (error) {
+            this.metrics.database.lastError = error;
+            this.metrics.database.reconnectAttempts++;
+        } else {
+            this.metrics.database.reconnectAttempts = 0;
+            this.metrics.database.lastError = null;
+        }
     }
 
     recordGameStarted() {
@@ -101,7 +124,8 @@ class MonitoringSystem {
         return {
             ...this.metrics,
             uptime,
-            uptimeFormatted: this.formatUptime(uptime)
+            uptimeFormatted: this.formatUptime(uptime),
+            errorLogs: this.errorLogs.slice(-10) // آخر 10 أخطاء
         };
     }
 
@@ -111,6 +135,19 @@ class MonitoringSystem {
         const minutes = Math.floor((seconds % 3600) / 60);
         const secs = seconds % 60;
         return `${days}d ${hours}h ${minutes}m ${secs}s`;
+    }
+
+    getHealthStatus() {
+        return {
+            status: this.metrics.database.connected ? 'healthy' : 'degraded',
+            uptime: this.formatUptime(Math.floor((Date.now() - this.startTime) / 1000)),
+            connections: this.metrics.connections.active,
+            database: this.metrics.database,
+            errors: {
+                total: this.metrics.errors.total,
+                recent: this.errorLogs.slice(-5)
+            }
+        };
     }
 }
 
@@ -122,18 +159,15 @@ class AdvancedLockSystem {
         this.locks = new Map();
         this.waitingQueues = new Map();
         this.lockTimeouts = new Map();
-        this.maxLockTime = 30000; // 30 ثانية
+        this.maxLockTime = 30000;
         this.cleanupInterval = setInterval(() => this.cleanup(), 60000);
     }
 
-    // الحصول على قفل مع طابور انتظار
     async acquireLock(resourceId, userId, timeout = 10000) {
         return new Promise((resolve, reject) => {
             const lockKey = `${resourceId}:${userId}`;
             
-            // التحقق من وجود قفل نشط
             if (this.locks.has(lockKey)) {
-                // إضافة إلى طابور الانتظار
                 if (!this.waitingQueues.has(lockKey)) {
                     this.waitingQueues.set(lockKey, []);
                 }
@@ -151,14 +185,12 @@ class AdvancedLockSystem {
                 return;
             }
 
-            // إنشاء القفل
             this.locks.set(lockKey, {
                 userId,
                 acquiredAt: Date.now(),
                 expiresAt: Date.now() + this.maxLockTime
             });
 
-            // تعيين مهلة تلقائية للقفل
             const timeoutId = setTimeout(() => {
                 this.releaseLock(resourceId, userId);
             }, this.maxLockTime);
@@ -168,20 +200,16 @@ class AdvancedLockSystem {
         });
     }
 
-    // تحرير القفل
     releaseLock(resourceId, userId) {
         const lockKey = `${resourceId}:${userId}`;
         
-        // إزالة القفل
         this.locks.delete(lockKey);
         
-        // إزالة المهلة
         if (this.lockTimeouts.has(lockKey)) {
             clearTimeout(this.lockTimeouts.get(lockKey));
             this.lockTimeouts.delete(lockKey);
         }
 
-        // معالجة طابور الانتظار
         if (this.waitingQueues.has(lockKey)) {
             const queue = this.waitingQueues.get(lockKey);
             if (queue.length > 0) {
@@ -205,13 +233,11 @@ class AdvancedLockSystem {
         }
     }
 
-    // التحقق من وجود قفل
     isLocked(resourceId, userId) {
         const lockKey = `${resourceId}:${userId}`;
         return this.locks.has(lockKey);
     }
 
-    // الحصول على معلومات القفل
     getLockInfo(resourceId, userId) {
         const lockKey = `${resourceId}:${userId}`;
         if (this.locks.has(lockKey)) {
@@ -220,7 +246,6 @@ class AdvancedLockSystem {
         return null;
     }
 
-    // تنظيف الأقفال المنتهية
     cleanup() {
         const now = Date.now();
         for (const [key, lock] of this.locks) {
@@ -231,7 +256,6 @@ class AdvancedLockSystem {
         }
     }
 
-    // إلغاء القفل بالقوة (للمدير)
     forceUnlock(resourceId, userId) {
         const lockKey = `${resourceId}:${userId}`;
         if (this.locks.has(lockKey)) {
@@ -241,7 +265,6 @@ class AdvancedLockSystem {
         return false;
     }
 
-    // الحصول على إحصائيات الأقفال
     getStats() {
         return {
             activeLocks: this.locks.size,
@@ -256,19 +279,21 @@ class AdvancedLockSystem {
 // ============================================
 class AntiCheatSystem {
     constructor() {
-        this.actionTracker = new Map(); // userId -> { actions: [], lastReset: timestamp }
+        this.actionTracker = new Map();
         this.rateLimits = {
-            move: { max: 60, window: 1000 }, // 60 حركة في الثانية
-            shoot: { max: 2, window: 3000 }, // 2 طلقة في 3 ثواني
-            join: { max: 5, window: 10000 }, // 5 محاولات انضمام في 10 ثواني
-            auth: { max: 3, window: 5000 } // 3 محاولات مصادقة في 5 ثواني
+            move: { max: 60, window: 1000 },
+            shoot: { max: 2, window: 3000 },
+            join: { max: 5, window: 10000 },
+            auth: { max: 3, window: 5000 }
         };
         this.suspiciousActivity = new Map();
         this.bannedUsers = new Set();
+        this.enabled = true;
     }
 
-    // التحقق من معدل الإجراءات
     checkRateLimit(userId, actionType) {
+        if (!this.enabled) return true;
+        
         const now = Date.now();
         const limit = this.rateLimits[actionType];
         if (!limit) return true;
@@ -279,19 +304,14 @@ class AntiCheatSystem {
 
         const tracker = this.actionTracker.get(userId);
         
-        // إعادة تعيين العداد إذا انتهت النافذة الزمنية
         if (now - tracker.lastReset > limit.window) {
             tracker.actions = [];
             tracker.lastReset = now;
         }
 
-        // إضافة الإجراء الحالي
         tracker.actions.push(now);
-
-        // تنظيف الإجراءات القديمة
         tracker.actions = tracker.actions.filter(t => now - t < limit.window);
 
-        // التحقق من التجاوز
         if (tracker.actions.length > limit.max) {
             this.reportSuspiciousActivity(userId, `Rate limit exceeded: ${actionType}`);
             return false;
@@ -300,7 +320,6 @@ class AntiCheatSystem {
         return true;
     }
 
-    // الإبلاغ عن نشاط مشبوه
     reportSuspiciousActivity(userId, reason) {
         if (!this.suspiciousActivity.has(userId)) {
             this.suspiciousActivity.set(userId, {
@@ -315,7 +334,6 @@ class AntiCheatSystem {
         activity.warnings++;
         activity.lastReport = Date.now();
 
-        // إذا تجاوز عدد التحذيرات 10، حظر المستخدم
         if (activity.warnings >= 10) {
             this.banUser(userId, 'مشتبه به: نشاط غير طبيعي متكرر');
         }
@@ -323,42 +341,41 @@ class AntiCheatSystem {
         console.warn(`⚠️ Suspicious activity detected: ${userId} - ${reason}`);
     }
 
-    // حظر المستخدم
     async banUser(userId, reason) {
         this.bannedUsers.add(userId);
         console.log(`🚫 User banned: ${userId} - ${reason}`);
         
-        // تسجيل الحظر في قاعدة البيانات
         try {
-            await pool.query(
-                `UPDATE users SET 
-                 is_banned = TRUE,
-                 ban_reason = $1,
-                 banned_until = $2
-                 WHERE id = $3`,
-                [reason, new Date(Date.now() + 24 * 60 * 60 * 1000), userId]
-            );
+            if (pool) {
+                await pool.query(
+                    `UPDATE users SET 
+                     is_banned = TRUE,
+                     ban_reason = $1,
+                     banned_until = $2
+                     WHERE id = $3`,
+                    [reason, new Date(Date.now() + 24 * 60 * 60 * 1000), userId]
+                );
+            }
         } catch (error) {
             console.error('Error banning user in database:', error);
         }
     }
 
-    // التحقق من حظر المستخدم
     async isUserBanned(userId) {
-        // التحقق من الكاش أولاً
         if (this.bannedUsers.has(userId)) return true;
 
-        // التحقق من قاعدة البيانات
         try {
-            const result = await pool.query(
-                'SELECT is_banned, banned_until FROM users WHERE id = $1',
-                [userId]
-            );
-            if (result.rows.length > 0) {
-                const user = result.rows[0];
-                if (user.is_banned && user.banned_until && new Date(user.banned_until) > new Date()) {
-                    this.bannedUsers.add(userId);
-                    return true;
+            if (pool) {
+                const result = await pool.query(
+                    'SELECT is_banned, banned_until FROM users WHERE id = $1',
+                    [userId]
+                );
+                if (result.rows.length > 0) {
+                    const user = result.rows[0];
+                    if (user.is_banned && user.banned_until && new Date(user.banned_until) > new Date()) {
+                        this.bannedUsers.add(userId);
+                        return true;
+                    }
                 }
             }
         } catch (error) {
@@ -367,12 +384,12 @@ class AntiCheatSystem {
         return false;
     }
 
-    // الحصول على إحصائيات الأمان
     getStats() {
         return {
             bannedUsers: this.bannedUsers.size,
             suspiciousActivities: this.suspiciousActivity.size,
-            activeTrackers: this.actionTracker.size
+            activeTrackers: this.actionTracker.size,
+            enabled: this.enabled
         };
     }
 }
@@ -381,82 +398,165 @@ class AntiCheatSystem {
 // 🔥 تهيئة Express
 // ============================================
 const app = express();
-app.use(cors());
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json({ limit: '10mb' }));
 
 // ============================================
-// 🗄️ اتصال PostgreSQL مع إعادة محاولة
+// 🗄️ اتصال PostgreSQL مع إعادة محاولة ذكية
 // ============================================
 class DatabaseManager {
     constructor() {
         this.pool = null;
         this.isConnected = false;
         this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 10;
+        this.maxReconnectAttempts = Infinity; // محاولة غير محدودة
         this.reconnectDelay = 5000;
-        this.connectionString = 'postgresql://neondb_owner:npg_MSOwr97htVJu@ep-patient-dawn-awed2uh0-pooler.c-12.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+        this.maxReconnectDelay = 60000; // 60 ثانية كحد أقصى
+        this.reconnectTimer = null;
+        this.isReconnecting = false;
+        this.connectionString = process.env.DATABASE_URL;
+        
+        if (!this.connectionString) {
+            console.error('❌ DATABASE_URL environment variable is not set!');
+            // محاولة استخدام الرابط الافتراضي كحل أخير
+            this.connectionString = 'postgresql://neondb_owner:npg_MSOwr97htVJu@ep-patient-dawn-awed2uh0-pooler.c-12.us-east-1.aws.neon.tech/neondb?sslmode=require';
+        }
+        
+        console.log('📡 Database URL configured:', this.connectionString ? '✅ Yes' : '❌ No');
     }
 
     async connect() {
+        if (this.isReconnecting) {
+            console.log('🔄 Reconnection already in progress, waiting...');
+            return new Promise((resolve) => {
+                const checkInterval = setInterval(() => {
+                    if (!this.isReconnecting) {
+                        clearInterval(checkInterval);
+                        resolve(this.pool);
+                    }
+                }, 500);
+            });
+        }
+
         try {
+            console.log(`📡 Connecting to database (attempt ${this.reconnectAttempts + 1})...`);
+            
             this.pool = new Pool({
                 connectionString: this.connectionString,
                 ssl: { rejectUnauthorized: false },
                 max: 20,
                 idleTimeoutMillis: 30000,
-                connectionTimeoutMillis: 2000,
+                connectionTimeoutMillis: 10000, // زيادة المهلة إلى 10 ثواني
                 retryDelay: this.reconnectDelay,
-                retryCount: this.maxReconnectAttempts
             });
 
-            // اختبار الاتصال
-            const client = await this.pool.connect();
+            // اختبار الاتصال مع مهلة
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Connection timeout')), 15000);
+            });
+
+            const connectPromise = this.pool.connect();
+            const client = await Promise.race([connectPromise, timeoutPromise]);
             client.release();
+            
             this.isConnected = true;
             this.reconnectAttempts = 0;
+            this.isReconnecting = false;
+            this.reconnectDelay = 5000; // إعادة تعيين التأخير
+            monitoring.recordDatabaseStatus(true);
+            
             console.log('✅ PostgreSQL connected successfully');
             return this.pool;
+            
         } catch (error) {
             console.error('❌ PostgreSQL connection failed:', error.message);
             this.isConnected = false;
+            this.isReconnecting = false;
+            monitoring.recordDatabaseStatus(false, error.message);
+            monitoring.recordError('database_connection_error', error.message);
+            
             return this.handleReconnect();
         }
     }
 
     async handleReconnect() {
-        if (this.reconnectAttempts < this.maxReconnectAttempts) {
-            this.reconnectAttempts++;
-            console.log(`🔄 Reconnecting attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
-            await new Promise(resolve => setTimeout(resolve, this.reconnectDelay));
-            return this.connect();
-        } else {
-            console.error('❌ Max reconnection attempts reached');
-            process.exit(1);
-        }
+        if (this.isReconnecting) return this.pool;
+        
+        this.isReconnecting = true;
+        this.reconnectAttempts++;
+        
+        // تأخير متزايد مع حد أقصى
+        const delay = Math.min(this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1), this.maxReconnectDelay);
+        
+        console.log(`🔄 Reconnecting attempt ${this.reconnectAttempts} in ${Math.round(delay/1000)}s...`);
+        
+        return new Promise((resolve) => {
+            if (this.reconnectTimer) {
+                clearTimeout(this.reconnectTimer);
+            }
+            
+            this.reconnectTimer = setTimeout(async () => {
+                console.log(`🔄 Attempting reconnection ${this.reconnectAttempts}...`);
+                try {
+                    await this.connect();
+                    resolve(this.pool);
+                } catch (error) {
+                    console.error(`❌ Reconnection ${this.reconnectAttempts} failed:`, error.message);
+                    // استمرار المحاولة
+                    this.isReconnecting = false;
+                    this.handleReconnect().then(resolve);
+                }
+            }, delay);
+        });
     }
 
     async query(text, params) {
-        if (!this.isConnected) {
+        // انتظار الاتصال إذا لم يكن متصلاً
+        if (!this.isConnected || !this.pool) {
+            console.log('⏳ Waiting for database connection...');
             await this.connect();
         }
+
         try {
             return await this.pool.query(text, params);
         } catch (error) {
             console.error('Database query error:', error);
-            if (error.code === 'ECONNRESET' || error.code === '57P01') {
-                // إعادة المحاولة في حالة انقطاع الاتصال
+            
+            // أخطاء الاتصال - محاولة إعادة الاتصال
+            if (error.code === 'ECONNRESET' || 
+                error.code === '57P01' || 
+                error.code === '08003' ||
+                error.code === '08006' ||
+                error.message.includes('connection')) {
+                
+                console.log('🔄 Connection lost, attempting to reconnect...');
                 this.isConnected = false;
-                await this.connect();
-                return this.pool.query(text, params);
+                monitoring.recordDatabaseStatus(false, error.message);
+                
+                try {
+                    await this.connect();
+                    console.log('🔄 Reconnected, retrying query...');
+                    return await this.pool.query(text, params);
+                } catch (reconnectError) {
+                    console.error('❌ Reconnection failed for query:', reconnectError.message);
+                    throw new Error(`Database connection lost and reconnection failed: ${reconnectError.message}`);
+                }
             }
+            
             throw error;
         }
     }
 
     async transaction(callback) {
-        if (!this.isConnected) {
+        if (!this.isConnected || !this.pool) {
             await this.connect();
         }
+        
         const client = await this.pool.connect();
         try {
             await client.query('BEGIN');
@@ -470,10 +570,17 @@ class DatabaseManager {
             client.release();
         }
     }
-}
 
-const db = new DatabaseManager();
-let pool;
+    getHealth() {
+        return {
+            connected: this.isConnected,
+            reconnectAttempts: this.reconnectAttempts,
+            poolSize: this.pool ? this.pool.totalCount : 0,
+            idleCount: this.pool ? this.pool.idleCount : 0,
+            waitingCount: this.pool ? this.pool.waitingCount : 0
+        };
+    }
+}
 
 // ============================================
 // 📦 أنظمة الحماية
@@ -491,13 +598,15 @@ const activeGames = new Map();
 const pendingReconnects = new Map();
 const leaderboardCache = new Map();
 const visualSettingsCache = new Map();
-const actionQueue = new Map(); // طابور الإجراءات
+const actionQueue = new Map();
 
 // ============================================
-// 🔧 تهيئة قاعدة البيانات
+// 🔧 تهيئة قاعدة البيانات مع إعادة محاولة
 // ============================================
-async function initializeDatabase() {
+async function initializeDatabase(retryCount = 0) {
     try {
+        const maxRetries = 5;
+        
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id VARCHAR(255) PRIMARY KEY,
@@ -586,7 +695,6 @@ async function initializeDatabase() {
             )
         `);
 
-        // جدول للطوابير ومنع التكرار
         await pool.query(`
             CREATE TABLE IF NOT EXISTS processed_actions (
                 id SERIAL PRIMARY KEY,
@@ -598,7 +706,6 @@ async function initializeDatabase() {
             )
         `);
 
-        // المؤشرات
         await pool.query(`
             CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
             CREATE INDEX IF NOT EXISTS idx_rooms_status ON rooms(status);
@@ -668,14 +775,22 @@ async function initializeDatabase() {
 
         console.log('✅ Database initialized successfully');
         
-        // تحميل الإعدادات البصرية
         await loadVisualSettings();
-        
-        // تهيئة الغرف
         await initializeRooms();
+        
+        return true;
         
     } catch (error) {
         console.error('❌ Database initialization error:', error);
+        monitoring.recordError('database_init_error', error.message);
+        
+        if (retryCount < 5) {
+            const delay = Math.min(5000 * Math.pow(2, retryCount), 30000);
+            console.log(`🔄 Retrying database initialization in ${delay/1000}s (attempt ${retryCount + 1}/5)...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return initializeDatabase(retryCount + 1);
+        }
+        
         throw error;
     }
 }
@@ -785,6 +900,8 @@ class ActionQueueProcessor {
         this.processing = false;
         this.maxConcurrent = 5;
         this.timeout = 30000;
+        this.processedCount = 0;
+        this.errorCount = 0;
     }
 
     async add(action) {
@@ -818,21 +935,23 @@ class ActionQueueProcessor {
 
     async processItem(item) {
         try {
-            // التحقق من انتهاء المهلة
             if (Date.now() - item.timestamp > this.timeout) {
                 item.reject(new Error('Action timeout'));
                 return;
             }
 
             const result = await item.action();
+            this.processedCount++;
             item.resolve(result);
         } catch (error) {
             console.error('Action processing error:', error);
+            this.errorCount++;
             
             if (item.retries < item.maxRetries) {
                 item.retries++;
                 item.timestamp = Date.now();
                 this.queue.push(item);
+                console.log(`🔄 Retrying action ${item.id} (${item.retries}/${item.maxRetries})`);
             } else {
                 item.reject(error);
             }
@@ -843,7 +962,9 @@ class ActionQueueProcessor {
         return {
             queueLength: this.queue.length,
             processing: this.processing,
-            maxConcurrent: this.maxConcurrent
+            maxConcurrent: this.maxConcurrent,
+            processedCount: this.processedCount,
+            errorCount: this.errorCount
         };
     }
 }
@@ -872,7 +993,7 @@ const io = socketIo(server, {
 // ============================================
 let configCache = null;
 let configCacheTime = 0;
-const CONFIG_CACHE_TTL = 10000; // 10 ثواني
+const CONFIG_CACHE_TTL = 10000;
 
 async function getServerConfig(forceRefresh = false) {
     if (!forceRefresh && configCache && (Date.now() - configCacheTime) < CONFIG_CACHE_TTL) {
@@ -952,6 +1073,8 @@ class GamePhysics {
         this.playerStats = new Map();
         this.lastState = null;
         this.gameRound = (room.gameRound || 0) + 1;
+        this.pingInterval = null;
+        this.lastPing = Date.now();
     }
 
     generateObstacles() {
@@ -1378,12 +1501,21 @@ class GamePhysics {
             this.update(Math.min(timeStep, 0.05));
         }, 50);
         monitoring.recordGameStarted();
+        
+        // Ping للحفاظ على الاتصال
+        this.pingInterval = setInterval(() => {
+            io.to(this.roomId).emit('game_ping', { time: Date.now() });
+        }, 5000);
     }
 
     stop() {
         if (this.tickInterval) {
             clearInterval(this.tickInterval);
             this.tickInterval = null;
+        }
+        if (this.pingInterval) {
+            clearInterval(this.pingInterval);
+            this.pingInterval = null;
         }
     }
 }
@@ -1545,7 +1677,6 @@ async function updateRoom(roomId) {
             needed: room.maxSeats - room.players.length
         });
         
-        // بدء المباراة إذا اكتملت الغرفة
         if (room.players.length >= Math.min(room.maxSeats, 2) && 
             room.status === 'waiting' &&
             room.players.length >= 2) {
@@ -1667,7 +1798,8 @@ io.on('connection', (socket) => {
         lastMoveTime: 0,
         reconnectToken: crypto.randomBytes(32).toString('hex'),
         ipAddress: socket.handshake.address,
-        deviceId: socket.handshake.query.deviceId || null
+        deviceId: socket.handshake.query.deviceId || null,
+        lastPing: Date.now()
     });
     
     // ============================================
@@ -1690,7 +1822,6 @@ io.on('connection', (socket) => {
                 return;
             }
             
-            // التحقق من معدل المصادقة
             if (!antiCheat.checkRateLimit(telegramId, 'auth')) {
                 clearTimeout(authTimeout);
                 socket.emit('auth_error', { message: 'Too many authentication attempts' });
@@ -1708,7 +1839,6 @@ io.on('connection', (socket) => {
                 return;
             }
             
-            // التحقق من الحظر
             if (await antiCheat.isUserBanned(telegramId)) {
                 clearTimeout(authTimeout);
                 socket.emit('auth_error', { 
@@ -1728,16 +1858,13 @@ io.on('connection', (socket) => {
                 if (deviceId) player.deviceId = deviceId;
             }
             
-            // البحث عن المستخدم في قاعدة البيانات
             let userResult = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [telegramId]);
             let userData = userResult.rows[0];
             
-            // المديرون الافتراضيون
-            const adminIds = ['admin_telegram_id_1', 'admin_telegram_id_2']; // يمكن إضافة IDs المديرين هنا
+            const adminIds = ['admin_telegram_id_1', 'admin_telegram_id_2'];
             const isAdmin = adminIds.includes(telegramId);
             
             if (!userData) {
-                // إنشاء مستخدم جديد
                 await pool.query(
                     `INSERT INTO users (
                         id, telegram_id, username, first_name, last_name, photo_url, 
@@ -1750,7 +1877,6 @@ io.on('connection', (socket) => {
                 userData = userResult.rows[0];
                 console.log(`🆕 New user created: ${telegramId} (${username || 'Unknown'})`);
             } else {
-                // تحديث بيانات المستخدم
                 await pool.query(
                     `UPDATE users SET 
                      username = COALESCE($1, username),
@@ -1807,7 +1933,7 @@ io.on('connection', (socket) => {
             console.error('❌ Auth error:', error);
             socket.emit('auth_error', { message: 'Authentication failed: ' + error.message });
             monitoring.recordRequest(false, Date.now() - startTime);
-            monitoring.recordError('auth_error');
+            monitoring.recordError('auth_error', error.message);
         }
     });
     
@@ -1837,7 +1963,6 @@ io.on('connection', (socket) => {
             
             const config = await getServerConfig();
             
-            // تحميل الإعدادات البصرية
             const visualSettings = {};
             for (const [key, value] of visualSettingsCache) {
                 visualSettings[key] = value;
@@ -1869,7 +1994,7 @@ io.on('connection', (socket) => {
             console.error('Error joining lobby:', error);
             socket.emit('error', { message: 'Could not join lobby' });
             monitoring.recordRequest(false, Date.now() - startTime);
-            monitoring.recordError('lobby_error');
+            monitoring.recordError('lobby_error', error.message);
         }
     });
     
@@ -1916,19 +2041,16 @@ io.on('connection', (socket) => {
             return;
         }
         
-        // التحقق من معدل الانضمام
         if (!antiCheat.checkRateLimit(player.userId, 'join')) {
             socket.emit('error', { message: 'Too many join attempts' });
             monitoring.recordRequest(false, Date.now() - startTime);
             return;
         }
         
-        // استخدام قفل لمنع الانضمام المتزامن لنفس الغرفة
         const lockKey = `room_join_${roomId}`;
         try {
             await lockSystem.acquireLock(lockKey, player.userId, 5000);
             
-            // التحقق مرة أخرى بعد الحصول على القفل
             if (room.status !== 'waiting') {
                 socket.emit('error', { message: 'Game already started' });
                 lockSystem.releaseLock(lockKey, player.userId);
@@ -1957,7 +2079,6 @@ io.on('connection', (socket) => {
                 return;
             }
             
-            // معالجة الدفع عبر طابور الإجراءات
             await actionProcessor.add(async () => {
                 await pool.query(
                     'UPDATE users SET balance = balance - $1 WHERE id = $2',
@@ -2023,11 +2144,10 @@ io.on('connection', (socket) => {
             socket.emit('error', { message: 'Could not join room: ' + error.message });
             lockSystem.releaseLock(lockKey, player.userId);
             monitoring.recordRequest(false, Date.now() - startTime);
-            monitoring.recordError('join_room_error');
+            monitoring.recordError('join_room_error', error.message);
         }
     });
     
-    // مغادرة الغرفة
     socket.on('leave_room', async () => {
         const startTime = Date.now();
         const player = players.get(socket.id);
@@ -2096,7 +2216,7 @@ io.on('connection', (socket) => {
             socket.emit('error', { message: 'Could not leave room' });
             lockSystem.releaseLock(lockKey, player.userId);
             monitoring.recordRequest(false, Date.now() - startTime);
-            monitoring.recordError('leave_room_error');
+            monitoring.recordError('leave_room_error', error.message);
         }
     });
     
@@ -2107,7 +2227,6 @@ io.on('connection', (socket) => {
         const player = players.get(socket.id);
         if (!player?.roomId) return;
         
-        // التحقق من معدل الحركة
         if (!antiCheat.checkRateLimit(player.userId, 'move')) {
             return;
         }
@@ -2121,7 +2240,6 @@ io.on('connection', (socket) => {
         const tank = game.tanks.get(player.userId);
         if (!tank || tank.health <= 0) return;
         
-        // تحديث الموقع
         tank.position = { ...data.position };
         tank.rotation = data.rotation || tank.rotation;
         
@@ -2137,7 +2255,6 @@ io.on('connection', (socket) => {
         const player = players.get(socket.id);
         if (!player?.roomId) return;
         
-        // التحقق من معدل الإطلاق
         if (!antiCheat.checkRateLimit(player.userId, 'shoot')) {
             return;
         }
@@ -2258,7 +2375,8 @@ io.on('connection', (socket) => {
                         monitoring: monitoring.getStats(),
                         locks: lockSystem.getStats(),
                         antiCheat: antiCheat.getStats(),
-                        queue: actionProcessor.getStats()
+                        queue: actionProcessor.getStats(),
+                        database: db.getHealth()
                     });
                     break;
                     
@@ -2337,7 +2455,7 @@ io.on('connection', (socket) => {
                     
                 case 'get_stats':
                     const stats = await getAdminStats();
-                    socket.emit('admin_stats', stats);
+                    socket.emit('admin_stats', { stats });
                     break;
                     
                 case 'get_players':
@@ -2351,7 +2469,7 @@ io.on('connection', (socket) => {
                         connectedAt: p.connectedAt,
                         ipAddress: p.ipAddress
                     }));
-                    socket.emit('admin_players', playersList);
+                    socket.emit('admin_players', { players: playersList });
                     break;
                     
                 case 'get_rooms':
@@ -2370,7 +2488,7 @@ io.on('connection', (socket) => {
                             kills: p.kills || 0
                         }))
                     }));
-                    socket.emit('admin_rooms', roomsList);
+                    socket.emit('admin_rooms', { rooms: roomsList });
                     break;
                     
                 case 'get_active_games':
@@ -2382,7 +2500,7 @@ io.on('connection', (socket) => {
                         duration: Math.floor((Date.now() - game.gameStartTime) / 1000),
                         gameRound: game.gameRound || 0
                     }));
-                    socket.emit('admin_active_games', games);
+                    socket.emit('admin_active_games', { games });
                     break;
                     
                 case 'force_unlock':
@@ -2429,13 +2547,33 @@ io.on('connection', (socket) => {
                     await setPlayerBalance(socket, params);
                     break;
                     
+                case 'get_database_health':
+                    socket.emit('admin_message', {
+                        message: `Database Health: ${JSON.stringify(db.getHealth())}`,
+                        type: 'info'
+                    });
+                    break;
+                    
+                case 'force_reconnect_db':
+                    socket.emit('admin_message', {
+                        message: '🔄 Forcing database reconnection...',
+                        type: 'info'
+                    });
+                    db.isConnected = false;
+                    await db.connect();
+                    socket.emit('admin_message', {
+                        message: db.isConnected ? '✅ Database reconnected successfully' : '❌ Database reconnection failed',
+                        type: db.isConnected ? 'success' : 'error'
+                    });
+                    break;
+                    
                 default:
                     socket.emit('admin_error', { message: 'Unknown command' });
             }
         } catch (error) {
             console.error('Admin command error:', error);
             socket.emit('admin_error', { message: error.message });
-            monitoring.recordError('admin_command_error');
+            monitoring.recordError('admin_command_error', error.message);
         }
     });
     
@@ -2468,10 +2606,14 @@ io.on('connection', (socket) => {
                     const index = room.players.findIndex(p => p.socketId === socket.id);
                     if (index !== -1) {
                         room.players.splice(index, 1);
-                        await pool.query(
-                            `UPDATE rooms SET players = $1 WHERE id = $2`,
-                            [JSON.stringify(room.players), room.id]
-                        );
+                        try {
+                            await pool.query(
+                                `UPDATE rooms SET players = $1 WHERE id = $2`,
+                                [JSON.stringify(room.players), room.id]
+                            );
+                        } catch (error) {
+                            console.error('Error updating room on disconnect:', error);
+                        }
                     }
                     
                     if (room.status === 'active') {
@@ -2528,10 +2670,10 @@ async function getAdminStats() {
             activeGames: activeGames.size,
             monitoring: monitoring.getStats(),
             locks: lockSystem.getStats(),
-            antiCheat: antiCheat.getStats()
+            antiCheat: antiCheat.getStats(),
+            database: db.getHealth()
         };
         
-        // الحصول على أفضل اللاعبين
         const topResult = await pool.query(`
             SELECT id, username, elo, kills, wins, games_played
             FROM users
@@ -2652,12 +2794,41 @@ async function setPlayerBalance(socket, params) {
 // 📡 API Routes
 // ============================================
 
-// التحقق من صلاحيات المدير
 async function verifyAdmin(adminToken, userId) {
     if (adminToken !== 'authenticated') return false;
     const result = await pool.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
     return result.rows[0]?.is_admin || false;
 }
+
+// نقطة نهاية للتحقق من صحة الخادم
+app.get('/health', (req, res) => {
+    const health = {
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        uptime: monitoring.formatUptime(Math.floor((Date.now() - monitoring.startTime) / 1000)),
+        database: db.getHealth(),
+        connections: monitoring.metrics.connections.active,
+        version: '8.1.0'
+    };
+    res.json(health);
+});
+
+// نقطة نهاية للتحقق من حالة قاعدة البيانات
+app.get('/db-health', async (req, res) => {
+    try {
+        await pool.query('SELECT 1');
+        res.json({ 
+            status: 'healthy',
+            details: db.getHealth()
+        });
+    } catch (error) {
+        res.status(503).json({ 
+            status: 'unhealthy',
+            error: error.message,
+            details: db.getHealth()
+        });
+    }
+});
 
 // الحصول على إعدادات الخادم
 app.get('/api/admin/config', async (req, res) => {
@@ -2680,7 +2851,8 @@ app.get('/api/admin/monitoring', async (req, res) => {
         monitoring: monitoring.getStats(),
         locks: lockSystem.getStats(),
         antiCheat: antiCheat.getStats(),
-        queue: actionProcessor.getStats()
+        queue: actionProcessor.getStats(),
+        database: db.getHealth()
     });
 });
 
@@ -2796,6 +2968,8 @@ app.post('/api/admin/force_unlock', async (req, res) => {
 // 🚀 تشغيل الخادم
 // ============================================
 const PORT = process.env.PORT || 3000;
+const db = new DatabaseManager();
+let pool;
 
 // بدء الخادم مع إعادة محاولة
 async function startServer() {
@@ -2811,7 +2985,7 @@ async function startServer() {
             console.log(`
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                              ║
-║     🎮 BATTLE TANKS ROYALE - الإصدار النهائي v8.0.0 🎮                    ║
+║     🎮 BATTLE TANKS ROYALE - الإصدار النهائي المحسن v8.1.0 🎮            ║
 ║                                                                              ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║  📡 Server: http://localhost:${PORT}
@@ -2829,6 +3003,8 @@ async function startServer() {
 ║  🎮 Games: ${activeGames.size} active
 ║                                                                              ║
 ║  📊 Admin API Endpoints:
+║     - GET  /health
+║     - GET  /db-health
 ║     - GET  /api/admin/config
 ║     - GET  /api/admin/monitoring
 ║     - GET  /api/admin/visual_settings
@@ -2838,12 +3014,39 @@ async function startServer() {
 ║     - GET  /api/admin/rooms
 ║     - POST /api/admin/force_unlock
 ║                                                                              ║
+║  🔄 Database Auto-Reconnect: ✅ ENABLED
+║  ⏱️  Reconnect Delay: Exponential (5s - 60s)
+║  🔁 Max Reconnect Attempts: Unlimited
+║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
             `);
         });
+        
+        // مراقبة صحة قاعدة البيانات بشكل دوري
+        setInterval(async () => {
+            try {
+                await pool.query('SELECT 1');
+                if (!db.isConnected) {
+                    console.log('✅ Database health check: connected');
+                    db.isConnected = true;
+                    monitoring.recordDatabaseStatus(true);
+                }
+            } catch (error) {
+                if (db.isConnected) {
+                    console.error('❌ Database health check failed:', error.message);
+                    db.isConnected = false;
+                    monitoring.recordDatabaseStatus(false, error.message);
+                    // محاولة إعادة الاتصال تلقائياً
+                    db.connect().catch(() => {});
+                }
+            }
+        }, 30000);
+        
     } catch (error) {
         console.error('❌ Failed to start server:', error);
-        setTimeout(startServer, 5000);
+        // محاولة إعادة التشغيل بعد تأخير
+        console.log(`🔄 Retrying server start in 10 seconds...`);
+        setTimeout(startServer, 10000);
     }
 }
 
@@ -2856,10 +3059,14 @@ process.on('SIGTERM', () => {
     console.log('🛑 SIGTERM received, shutting down gracefully...');
     server.close(() => {
         console.log('✅ Server closed');
-        pool.end(() => {
-            console.log('✅ Database connection closed');
+        if (pool) {
+            pool.end(() => {
+                console.log('✅ Database connection closed');
+                process.exit(0);
+            });
+        } else {
             process.exit(0);
-        });
+        }
     });
 });
 
@@ -2867,11 +3074,28 @@ process.on('SIGINT', () => {
     console.log('🛑 SIGINT received, shutting down gracefully...');
     server.close(() => {
         console.log('✅ Server closed');
-        pool.end(() => {
-            console.log('✅ Database connection closed');
+        if (pool) {
+            pool.end(() => {
+                console.log('✅ Database connection closed');
+                process.exit(0);
+            });
+        } else {
             process.exit(0);
-        });
+        }
     });
 });
 
-module.exports = { server, io, app, pool, monitoring, lockSystem, antiCheat, actionProcessor };
+// التعامل مع الأخطاء غير المتوقعة
+process.on('uncaughtException', (error) => {
+    console.error('💥 Uncaught Exception:', error);
+    monitoring.recordError('uncaught_exception', error.message);
+    // لا نخرج من العملية، نحاول الاستمرار
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('💥 Unhandled Rejection:', reason);
+    monitoring.recordError('unhandled_rejection', reason);
+    // لا نخرج من العملية، نحاول الاستمرار
+});
+
+module.exports = { server, io, app, pool, monitoring, lockSystem, antiCheat, actionProcessor, db };
