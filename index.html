@@ -620,7 +620,8 @@
         if (userId) {
             localStorage.setItem('telegramId', userId);
             localStorage.setItem('telegramUsername', 'user_' + userId);
-            window.location.href = '/game?user_id=' + userId;
+            // ✅ التصحيح: استخدام game.html بدلاً من /game
+            window.location.href = 'game.html?user_id=' + userId;
         }
 
         // ============================================================
@@ -648,7 +649,8 @@
                 statusMsg.style.display = 'block';
                 statusMsg.textContent = '✅ تم تسجيل الدخول بنجاح! جاري التوجيه...';
                 setTimeout(() => {
-                    window.location.href = '/game?user_id=' + fakeId;
+                    // ✅ التصحيح: استخدام game.html بدلاً من /game
+                    window.location.href = 'game.html?user_id=' + fakeId;
                 }, 1000);
             }, 2000);
         });
@@ -688,7 +690,8 @@
                 statusMsg.textContent = '✅ تم تسجيل الدخول بنجاح! جاري التوجيه...';
 
                 setTimeout(() => {
-                    window.location.href = '/game?user_id=' + fakeId;
+                    // ✅ التصحيح: استخدام game.html بدلاً من /game
+                    window.location.href = 'game.html?user_id=' + fakeId;
                 }, 1000);
 
             } catch (error) {
@@ -703,7 +706,8 @@
         // 🔄 التحقق من وجود جلسة سابقة
         // ============================================================
         if (localStorage.getItem('telegramId')) {
-            window.location.href = '/game?user_id=' + localStorage.getItem('telegramId');
+            // ✅ التصحيح: استخدام game.html بدلاً من /game
+            window.location.href = 'game.html?user_id=' + localStorage.getItem('telegramId');
         }
     </script>
 
