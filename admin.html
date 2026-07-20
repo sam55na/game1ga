@@ -3,1636 +3,602 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Battle Tanks Elite - لوحة التحكم</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <title>لوحة التحكم - Battle Tanks</title>
     <style>
-        /* ============================================================
-           🎨 الأنماط الأساسية
-           ============================================================ */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
-        :root {
-            --gold: #d4af37;
-            --gold-dark: #b8860b;
-            --gold-light: #f0d060;
-            --dark: #0a0f1a;
-            --darker: #05070c;
-            --card-bg: rgba(255,255,255,0.05);
-            --border-color: rgba(212, 175, 55, 0.2);
-            --text: #e8e8e8;
-            --text-muted: #8a9aa8;
-            --success: #2ecc71;
-            --danger: #e74c3c;
-            --warning: #f39c12;
-            --info: #3498db;
-            --shadow: 0 8px 32px rgba(0,0,0,0.3);
-        }
-
         body {
-            font-family: 'Cairo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: radial-gradient(ellipse at 30% 20%, #1a2a3a 0%, var(--dark) 50%, var(--darker) 100%);
-            color: var(--text);
+            font-family: 'Segoe UI', 'Cairo', Tahoma, Geneva, Verdana, sans-serif;
             min-height: 100vh;
+            background: linear-gradient(135deg, #0a0f1a, #1a1a2e);
+            color: white;
             padding: 20px;
         }
 
-        /* ============================================================
-           📦 الحاوية الرئيسية
-           ============================================================ */
         .container {
-            max-width: 1400px;
+            max-width: 900px;
             margin: 0 auto;
         }
 
-        /* ============================================================
-           🏷️ الرأس
-           ============================================================ */
         .header {
+            background: rgba(10, 15, 30, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 20px;
+            padding: 20px 30px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 20px 30px;
-            background: var(--card-bg);
-            border-radius: 24px;
-            border: 1px solid var(--border-color);
+            flex-wrap: wrap;
+            gap: 15px;
             margin-bottom: 30px;
-            flex-wrap: wrap;
-            gap: 15px;
         }
 
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 15px;
+        .logo {
+            font-size: 22px;
+            font-weight: bold;
+            color: #d4af37;
         }
 
-        .header-left .logo {
-            font-size: 36px;
+        .logo span { color: #fff; }
+
+        .back-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 50px;
+            padding: 8px 20px;
+            color: white;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s;
         }
 
-        .header-left h1 {
-            color: var(--gold);
-            font-size: 24px;
-            font-weight: 900;
+        .back-btn:hover {
+            background: rgba(255,255,255,0.2);
         }
 
-        .header-left .version {
-            color: var(--text-muted);
-            font-size: 12px;
-            background: rgba(255,255,255,0.05);
-            padding: 2px 12px;
+        .card {
+            background: rgba(10, 15, 30, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(212, 175, 55, 0.2);
             border-radius: 20px;
+            padding: 25px;
+            margin: 15px 0;
         }
 
-        .header-actions {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
+        .card h3 {
+            color: #d4af37;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-item {
+            background: rgba(255,255,255,0.05);
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-item .value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #d4af37;
+        }
+
+        .stat-item .label {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        .form-group {
+            margin: 15px 0;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.05);
+            color: white;
+            font-size: 16px;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #d4af37;
         }
 
         .btn {
-            padding: 10px 24px;
+            padding: 12px 24px;
             border: none;
-            border-radius: 30px;
-            font-family: 'Cairo', sans-serif;
-            font-weight: 700;
-            font-size: 14px;
+            border-radius: 12px;
+            font-weight: bold;
             cursor: pointer;
-            transition: all 0.3s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            text-decoration: none;
+            transition: all 0.3s;
+            font-size: 14px;
         }
 
         .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            transform: scale(1.03);
         }
 
-        .btn:active {
-            transform: scale(0.97);
-        }
-
-        .btn-gold {
-            background: linear-gradient(135deg, var(--gold), var(--gold-dark));
-            color: var(--dark);
-        }
-
-        .btn-danger {
-            background: linear-gradient(135deg, #e74c3c, #c0392b);
-            color: white;
+        .btn-primary {
+            background: linear-gradient(135deg, #d4af37, #b8860b);
+            color: #000;
         }
 
         .btn-success {
-            background: linear-gradient(135deg, #2ecc71, #27ae60);
-            color: white;
+            background: #2ecc71;
+            color: #fff;
         }
 
-        .btn-info {
-            background: linear-gradient(135deg, #3498db, #2980b9);
-            color: white;
+        .btn-danger {
+            background: #e74c3c;
+            color: #fff;
         }
 
-        .btn-outline {
-            background: transparent;
-            border: 1px solid var(--border-color);
-            color: var(--text);
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
         }
 
-        .btn-outline:hover {
-            background: rgba(255,255,255,0.05);
+        .btn-block {
+            width: 100%;
+            margin: 5px 0;
         }
 
-        .btn-sm {
-            padding: 6px 16px;
-            font-size: 12px;
-        }
-
-        /* ============================================================
-           📊 شبكة الإحصائيات
-           ============================================================ */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-            margin-bottom: 30px;
-        }
-
-        .stat-card {
-            background: var(--card-bg);
-            border-radius: 20px;
-            padding: 20px 24px;
-            border: 1px solid var(--border-color);
-            transition: all 0.3s ease;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-4px);
-            border-color: var(--gold);
-            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
-        }
-
-        .stat-card .label {
-            color: var(--text-muted);
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .stat-card .value {
-            font-size: 28px;
-            font-weight: 900;
-            color: var(--gold);
-            margin-top: 4px;
-        }
-
-        .stat-card .change {
-            font-size: 12px;
-            margin-top: 4px;
-        }
-
-        .stat-card .change.up { color: var(--success); }
-        .stat-card .change.down { color: var(--danger); }
-
-        /* ============================================================
-           📋 الأقسام
-           ============================================================ */
-        .section {
-            background: var(--card-bg);
-            border-radius: 24px;
-            padding: 24px 28px;
-            border: 1px solid var(--border-color);
-            margin-bottom: 24px;
-        }
-
-        .section-header {
+        .btn-group {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-
-        .section-header h2 {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--gold);
-            display: flex;
-            align-items: center;
             gap: 10px;
+            flex-wrap: wrap;
         }
 
-        .section-header .badge {
-            font-size: 12px;
-            background: rgba(212, 175, 55, 0.15);
-            padding: 2px 14px;
-            border-radius: 20px;
-            color: var(--gold);
+        .btn-group .btn {
+            flex: 1;
+            min-width: 100px;
         }
 
-        /* ============================================================
-           📊 الجداول
-           ============================================================ */
-        .table-wrapper {
+        .table-wrap {
             overflow-x: auto;
-            border-radius: 16px;
-            border: 1px solid rgba(255,255,255,0.05);
+            margin: 15px 0;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 14px;
+            font-size: 13px;
         }
 
-        thead {
-            background: rgba(255,255,255,0.03);
-        }
-
-        th {
-            padding: 14px 16px;
-            text-align: right;
-            color: var(--text-muted);
-            font-weight: 600;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+        th,
+        td {
+            padding: 10px 12px;
+            text-align: left;
             border-bottom: 1px solid rgba(255,255,255,0.05);
         }
 
-        td {
-            padding: 12px 16px;
-            border-bottom: 1px solid rgba(255,255,255,0.03);
-            vertical-align: middle;
+        th {
+            color: #d4af37;
+            font-weight: bold;
         }
 
-        tr:hover td {
-            background: rgba(255,255,255,0.02);
-        }
-
-        .status-badge {
-            padding: 4px 14px;
+        .badge {
+            padding: 2px 10px;
             border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            display: inline-block;
+            font-size: 11px;
         }
 
-        .status-badge.active { background: rgba(46, 204, 113, 0.2); color: var(--success); }
-        .status-badge.waiting { background: rgba(52, 152, 219, 0.2); color: var(--info); }
-        .status-badge.ended { background: rgba(231, 76, 60, 0.2); color: var(--danger); }
-        .status-badge.banned { background: rgba(231, 76, 60, 0.3); color: var(--danger); }
-        .status-badge.admin { background: rgba(212, 175, 55, 0.2); color: var(--gold); }
-
-        /* ============================================================
-           📝 النماذج
-           ============================================================ */
-        .form-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-            margin-bottom: 16px;
+        .badge-success {
+            background: rgba(46, 204, 113, 0.2);
+            color: #2ecc71;
         }
 
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
+        .badge-danger {
+            background: rgba(231, 76, 60, 0.2);
+            color: #e74c3c;
         }
 
-        .form-group label {
-            font-size: 13px;
-            color: var(--text-muted);
-            font-weight: 600;
+        .badge-warning {
+            background: rgba(241, 196, 15, 0.2);
+            color: #f1c40f;
         }
 
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-            padding: 10px 16px;
-            border-radius: 12px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid var(--border-color);
-            color: var(--text);
-            font-family: 'Cairo', sans-serif;
-            font-size: 14px;
-            transition: all 0.3s ease;
-            outline: none;
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
         }
 
-        .form-group input:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
-            border-color: var(--gold);
-            box-shadow: 0 0 20px rgba(212, 175, 55, 0.05);
+        .admin-access-denied {
+            text-align: center;
+            padding: 60px 20px;
         }
 
-        .form-group input::placeholder {
-            color: #555;
+        .admin-access-denied .icon {
+            font-size: 60px;
+            margin-bottom: 20px;
         }
 
-        .form-group textarea {
-            resize: vertical;
-            min-height: 60px;
+        .admin-access-denied h1 {
+            color: #e74c3c;
+            font-size: 28px;
+            margin-bottom: 10px;
         }
 
-        /* ============================================================
-           📋 قائمة الغرف
-           ============================================================ */
-        .rooms-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 16px;
-        }
-
-        .room-card {
-            background: rgba(255,255,255,0.03);
-            border-radius: 16px;
-            padding: 18px 20px;
-            border: 1px solid rgba(255,255,255,0.05);
-            transition: all 0.3s ease;
-        }
-
-        .room-card:hover {
-            border-color: var(--gold);
-            transform: translateY(-2px);
-        }
-
-        .room-card .room-name {
-            font-weight: 700;
+        .admin-access-denied p {
+            color: #888;
             font-size: 16px;
-            color: var(--gold);
-        }
-
-        .room-card .room-details {
-            display: flex;
-            gap: 16px;
-            margin-top: 8px;
-            flex-wrap: wrap;
-            font-size: 13px;
-            color: var(--text-muted);
-        }
-
-        .room-card .room-details span {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        /* ============================================================
-           🔔 الإشعارات
-           ============================================================ */
-        .toast {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            padding: 16px 24px;
-            border-radius: 16px;
-            background: var(--dark);
-            border: 1px solid var(--border-color);
-            color: var(--text);
-            box-shadow: var(--shadow);
-            z-index: 10000;
-            max-width: 400px;
-            transform: translateY(100px);
-            opacity: 0;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-
-        .toast.show {
-            transform: translateY(0);
-            opacity: 1;
-        }
-
-        .toast.success { border-color: var(--success); }
-        .toast.error { border-color: var(--danger); }
-        .toast.warning { border-color: var(--warning); }
-
-        .toast .toast-title {
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-
-        .toast .toast-message {
-            font-size: 14px;
-            color: var(--text-muted);
-        }
-
-        /* ============================================================
-           📱 التجاوب
-           ============================================================ */
-        @media (max-width: 768px) {
-            .header {
-                padding: 16px 20px;
-                flex-direction: column;
-                align-items: stretch;
-                text-align: center;
-            }
-
-            .header-left {
-                justify-content: center;
-            }
-
-            .header-actions {
-                justify-content: center;
-            }
-
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .section {
-                padding: 16px 18px;
-            }
-
-            .rooms-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .form-row {
-                grid-template-columns: 1fr;
-            }
-
-            .toast {
-                right: 16px;
-                left: 16px;
-                max-width: none;
-            }
         }
 
         @media (max-width: 480px) {
+            .header {
+                padding: 15px;
+                flex-direction: column;
+                text-align: center;
+            }
             .stats-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: 1fr 1fr;
             }
-
-            .header-left h1 {
-                font-size: 18px;
+            .btn-group {
+                flex-direction: column;
             }
-
-            .stat-card .value {
-                font-size: 22px;
-            }
-        }
-
-        /* ============================================================
-           🌀 التحميل
-           ============================================================ */
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.8);
-            backdrop-filter: blur(8px);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
-
-        .loading-overlay.show {
-            display: flex;
-        }
-
-        .loading-spinner {
-            width: 60px;
-            height: 60px;
-            border: 4px solid rgba(212, 175, 55, 0.15);
-            border-top: 4px solid var(--gold);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* ============================================================
-           📊 رسوم بيانية بسيطة
-           ============================================================ */
-        .mini-chart {
-            display: flex;
-            align-items: flex-end;
-            gap: 3px;
-            height: 40px;
-            padding-top: 4px;
-        }
-
-        .mini-chart .bar {
-            flex: 1;
-            background: var(--gold);
-            border-radius: 2px 2px 0 0;
-            min-width: 4px;
-            opacity: 0.6;
-            transition: height 0.5s ease;
-        }
-
-        .mini-chart .bar:hover {
-            opacity: 1;
-        }
-
-        /* ============================================================
-           🏷️ علامات تبويب
-           ============================================================ */
-        .tabs {
-            display: flex;
-            gap: 4px;
-            background: rgba(255,255,255,0.03);
-            border-radius: 16px;
-            padding: 4px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .tab-btn {
-            padding: 8px 20px;
-            border: none;
-            border-radius: 12px;
-            background: transparent;
-            color: var(--text-muted);
-            font-family: 'Cairo', sans-serif;
-            font-weight: 600;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .tab-btn:hover {
-            color: var(--text);
-        }
-
-        .tab-btn.active {
-            background: var(--gold);
-            color: var(--dark);
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-            animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* ============================================================
-           🔍 البحث والفلترة
-           ============================================================ */
-        .search-bar {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 16px;
-            flex-wrap: wrap;
-        }
-
-        .search-bar input {
-            flex: 1;
-            min-width: 200px;
-            padding: 10px 16px;
-            border-radius: 12px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid var(--border-color);
-            color: var(--text);
-            font-family: 'Cairo', sans-serif;
-            font-size: 14px;
-            outline: none;
-        }
-
-        .search-bar input:focus {
-            border-color: var(--gold);
-        }
-
-        .search-bar select {
-            padding: 10px 16px;
-            border-radius: 12px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid var(--border-color);
-            color: var(--text);
-            font-family: 'Cairo', sans-serif;
-            font-size: 14px;
-            outline: none;
-        }
-
-        .search-bar select:focus {
-            border-color: var(--gold);
         }
     </style>
 </head>
 <body>
-
-    <!-- ============================================================
-    🌀 تحميل
-    ============================================================ -->
-    <div class="loading-overlay" id="loadingOverlay">
-        <div class="loading-spinner"></div>
-    </div>
-
-    <!-- ============================================================
-    🔔 إشعار
-    ============================================================ -->
-    <div class="toast" id="toast">
-        <div class="toast-title" id="toastTitle"></div>
-        <div class="toast-message" id="toastMessage"></div>
-    </div>
-
-    <!-- ============================================================
-    📦 الحاوية الرئيسية
-    ============================================================ -->
     <div class="container">
-
-        <!-- ============================================================
-        🏷️ الرأس
-        ============================================================ -->
-        <header class="header">
-            <div class="header-left">
-                <span class="logo">⚔️</span>
-                <h1>لوحة التحكم <span class="version">v6.0</span></h1>
+        <!-- شريط العنوان -->
+        <div class="header">
+            <div style="display:flex;align-items:center;gap:15px;">
+                <a href="index.html" class="back-btn">🏠 العودة</a>
+                <div class="logo">⚙️ Battle <span>Admin</span></div>
             </div>
-            <div class="header-actions">
-                <button class="btn btn-outline btn-sm" onclick="refreshAll()">🔄 تحديث</button>
-                <button class="btn btn-gold btn-sm" onclick="window.location.href='/game'">🎮 العودة للعبة</button>
-                <button class="btn btn-danger btn-sm" id="logoutBtn">🚪 خروج</button>
-            </div>
-        </header>
-
-        <!-- ============================================================
-        📊 شبكة الإحصائيات
-        ============================================================ -->
-        <div class="stats-grid" id="statsGrid">
-            <div class="stat-card">
-                <div class="label">👥 إجمالي اللاعبين</div>
-                <div class="value" id="totalUsers">-</div>
-                <div class="change" id="newUsersToday">جديد اليوم: 0</div>
-            </div>
-            <div class="stat-card">
-                <div class="label">💰 إجمالي الأرصدة</div>
-                <div class="value" id="totalBalance">-</div>
-                <div class="change">$</div>
-            </div>
-            <div class="stat-card">
-                <div class="label">🎮 المباريات</div>
-                <div class="value" id="totalGames">-</div>
-                <div class="change" id="activeGames">نشطة: 0</div>
-            </div>
-            <div class="stat-card">
-                <div class="label">🏆 الفوز</div>
-                <div class="value" id="totalWins">-</div>
-                <div class="change" id="winRate">نسبة الفوز: 0%</div>
-            </div>
-            <div class="stat-card">
-                <div class="label">📊 إيرادات اليوم</div>
-                <div class="value" id="todayRevenue">-</div>
-                <div class="change" id="todayTransactions">معاملات: 0</div>
-            </div>
-            <div class="stat-card">
-                <div class="label">🔒 المحظورين</div>
-                <div class="value" id="bannedUsers">-</div>
-                <div class="change">👑 المشرفين: <span id="adminCount">0</span></div>
+            <div style="display:flex;align-items:center;gap:10px;color:#888;font-size:14px;">
+                👑 <span id="adminId">المشرف</span>
             </div>
         </div>
 
-        <!-- ============================================================
-        📋 الأقسام
-        ============================================================ -->
-
-        <!-- ============================================================
-        🏷️ علامات تبويب
-        ============================================================ -->
-        <div class="tabs">
-            <button class="tab-btn active" data-tab="players">👥 اللاعبين</button>
-            <button class="tab-btn" data-tab="rooms">🏠 الغرف</button>
-            <button class="tab-btn" data-tab="transactions">💰 المعاملات</button>
-            <button class="tab-btn" data-tab="settings">⚙️ الإعدادات</button>
-            <button class="tab-btn" data-tab="audit">📋 سجل التدقيق</button>
-        </div>
-
-        <!-- ============================================================
-        👥 تبويب اللاعبين
-        ============================================================ -->
-        <div class="tab-content active" id="tab-players">
-            <div class="section">
-                <div class="section-header">
-                    <h2>👥 إدارة اللاعبين</h2>
-                    <span class="badge" id="playersCount">0 لاعب</span>
+        <!-- محتوى لوحة التحكم -->
+        <div id="adminContent">
+            <!-- الإحصائيات -->
+            <div class="card">
+                <h3>📊 إحصائيات عامة</h3>
+                <div class="stats-grid" id="statsGrid">
+                    <div class="stat-item">
+                        <div class="value" id="totalUsers">0</div>
+                        <div class="label">👥 المستخدمين</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="value" id="totalBalance">0</div>
+                        <div class="label">💰 إجمالي الأرصدة</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="value" id="activeRooms">0</div>
+                        <div class="label">🏠 غرف نشطة</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="value" id="waitingRooms">0</div>
+                        <div class="label">⏳ غرف في الانتظار</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="value" id="totalGames">0</div>
+                        <div class="label">🎮 مباريات</div>
+                    </div>
                 </div>
+                <button class="btn btn-secondary btn-block" onclick="refreshStats()">🔄 تحديث الإحصائيات</button>
+            </div>
 
-                <div class="search-bar">
-                    <input type="text" id="playerSearch" placeholder="🔍 بحث عن لاعب...">
-                    <select id="playerFilter">
-                        <option value="all">الكل</option>
-                        <option value="admin">المشرفين</option>
-                        <option value="banned">المحظورين</option>
-                        <option value="active">النشطين</option>
+            <!-- إدارة الأرصدة -->
+            <div class="card">
+                <h3>💰 إدارة الأرصدة</h3>
+                <div class="form-group">
+                    <label>معرف المستخدم (تيليغرام)</label>
+                    <input type="text" id="targetUserId" placeholder="مثال: 123456789">
+                </div>
+                <div class="form-group">
+                    <label>المبلغ</label>
+                    <input type="number" id="amount" value="10" min="1">
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-success" onclick="adminBalance('deposit')">➕ إيداع</button>
+                    <button class="btn btn-danger" onclick="adminBalance('withdraw')">➖ سحب</button>
+                </div>
+            </div>
+
+            <!-- إدارة الغرف -->
+            <div class="card">
+                <h3>🏠 إدارة الغرف</h3>
+                <div class="form-group">
+                    <label>نوع الغرفة</label>
+                    <select id="roomType">
+                        <option value="غرفة المبتدئين">🟢 المبتدئين</option>
+                        <option value="غرفة المتقدمين">🟡 المتقدمين</option>
+                        <option value="غرفة المحترفين">🔴 المحترفين</option>
                     </select>
-                    <button class="btn btn-gold btn-sm" onclick="loadPlayers()">🔄 تحديث</button>
                 </div>
+                <div class="form-group">
+                    <label>عدد اللاعبين (2-16)</label>
+                    <input type="number" id="maxPlayers" value="4" min="2" max="16">
+                </div>
+                <div class="form-group">
+                    <label>سعر المقعد ($)</label>
+                    <input type="number" id="seatPrice" value="5" min="1">
+                </div>
+                <button class="btn btn-primary btn-block" onclick="updateRoomType()">💾 تحديث إعدادات الغرفة</button>
+            </div>
 
-                <div class="table-wrapper">
+            <!-- قائمة الغرف -->
+            <div class="card">
+                <h3>📋 قائمة الغرف</h3>
+                <div class="table-wrap">
                     <table>
                         <thead>
                             <tr>
-                                <th>المستخدم</th>
-                                <th>تيليغرام</th>
-                                <th>الرصيد</th>
-                                <th>مباريات</th>
-                                <th>فوز</th>
-                                <th>قتل</th>
-                                <th>الحالة</th>
-                                <th>إجراءات</th>
-                            </tr>
-                        </thead>
-                        <tbody id="playersTableBody">
-                            <tr><td colspan="8" style="text-align:center; padding:30px; color:var(--text-muted);">جاري التحميل...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- ============================================================
-            💰 إدارة الأرصدة
-            ============================================================ -->
-            <div class="section">
-                <div class="section-header">
-                    <h2>💰 إدارة الأرصدة</h2>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>معرف تيليغرام</label>
-                        <input type="text" id="targetTelegramId" placeholder="أدخل معرف تيليغرام">
-                    </div>
-                    <div class="form-group">
-                        <label>المبلغ</label>
-                        <input type="number" id="balanceAmount" placeholder="المبلغ بالدولار" min="1">
-                    </div>
-                    <div class="form-group">
-                        <label>السبب</label>
-                        <input type="text" id="balanceReason" placeholder="سبب التعديل (اختياري)">
-                    </div>
-                </div>
-                <div style="display:flex; gap:12px; flex-wrap:wrap;">
-                    <button class="btn btn-success" onclick="adminDeposit()">➕ إيداع</button>
-                    <button class="btn btn-danger" onclick="adminWithdraw()">➖ سحب</button>
-                    <button class="btn btn-danger" onclick="adminBan()">🚫 حظر</button>
-                    <button class="btn btn-info" onclick="adminUnban()">✅ فك الحظر</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- ============================================================
-        🏠 تبويب الغرف
-        ============================================================ -->
-        <div class="tab-content" id="tab-rooms">
-            <div class="section">
-                <div class="section-header">
-                    <h2>🏠 إدارة الغرف</h2>
-                    <span class="badge" id="roomsCount">0 غرفة</span>
-                </div>
-
-                <div class="search-bar">
-                    <input type="text" id="roomSearch" placeholder="🔍 بحث عن غرفة...">
-                    <select id="roomFilter">
-                        <option value="all">الكل</option>
-                        <option value="waiting">في الانتظار</option>
-                        <option value="active">نشطة</option>
-                        <option value="ended">منتهية</option>
-                    </select>
-                    <button class="btn btn-gold btn-sm" onclick="loadRooms()">🔄 تحديث</button>
-                </div>
-
-                <div class="rooms-grid" id="roomsGrid">
-                    <div style="text-align:center; padding:30px; color:var(--text-muted);">جاري التحميل...</div>
-                </div>
-            </div>
-
-            <!-- ============================================================
-            ⚙️ إعدادات الغرف
-            ============================================================ -->
-            <div class="section">
-                <div class="section-header">
-                    <h2>⚙️ إعدادات أنواع الغرف</h2>
-                </div>
-                <div id="roomTypesSettings">
-                    <div style="text-align:center; padding:20px; color:var(--text-muted);">جاري التحميل...</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ============================================================
-        💰 تبويب المعاملات
-        ============================================================ -->
-        <div class="tab-content" id="tab-transactions">
-            <div class="section">
-                <div class="section-header">
-                    <h2>💰 سجل المعاملات</h2>
-                    <span class="badge" id="transactionsCount">0 معاملة</span>
-                </div>
-
-                <div class="search-bar">
-                    <input type="text" id="transactionSearch" placeholder="🔍 بحث عن معاملة...">
-                    <select id="transactionFilter">
-                        <option value="all">الكل</option>
-                        <option value="game_entry">دخول معركة</option>
-                        <option value="game_reward">مكافأة</option>
-                        <option value="refund">استرداد</option>
-                        <option value="admin_add">إيداع مشرف</option>
-                        <option value="admin_remove">سحب مشرف</option>
-                    </select>
-                    <button class="btn btn-gold btn-sm" onclick="loadTransactions()">🔄 تحديث</button>
-                </div>
-
-                <div class="table-wrapper">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>التاريخ</th>
-                                <th>المستخدم</th>
+                                <th>الغرفة</th>
                                 <th>النوع</th>
-                                <th>المبلغ</th>
-                                <th>الرصيد بعد</th>
-                                <th>الوصف</th>
+                                <th>اللاعبين</th>
+                                <th>الحالة</th>
                             </tr>
                         </thead>
-                        <tbody id="transactionsTableBody">
-                            <tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">جاري التحميل...</td></tr>
+                        <tbody id="roomsBody">
+                            <tr><td colspan="4" style="text-align:center;color:#888;">جاري التحميل...</td></tr>
                         </tbody>
                     </table>
                 </div>
+                <button class="btn btn-secondary btn-block" onclick="refreshRooms()">🔄 تحديث الغرف</button>
+            </div>
+
+            <!-- إجراءات خطيرة -->
+            <div class="card" style="border-color:#e74c3c;">
+                <h3 style="color:#e74c3c;">⚠️ إجراءات خطيرة</h3>
+                <button class="btn btn-danger btn-block" onclick="resetAllData()">🗑️ مسح جميع بيانات اللاعبين</button>
             </div>
         </div>
 
-        <!-- ============================================================
-        ⚙️ تبويب الإعدادات
-        ============================================================ -->
-        <div class="tab-content" id="tab-settings">
-            <div class="section">
-                <div class="section-header">
-                    <h2>⚙️ إعدادات النظام</h2>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>مدة المباراة (ثانية)</label>
-                        <input type="number" id="gameDuration" value="300" min="60" max="600">
-                    </div>
-                    <div class="form-group">
-                        <label>الحد الأقصى للاعبين في الغرفة</label>
-                        <input type="number" id="maxPlayersPerRoom" value="8" min="2" max="16">
-                    </div>
-                    <div class="form-group">
-                        <label>عدد الغرف من كل نوع</label>
-                        <input type="number" id="roomsPerType" value="10" min="2" max="20">
-                    </div>
-                </div>
-                <button class="btn btn-gold" onclick="saveSettings()">💾 حفظ الإعدادات</button>
-            </div>
-
-            <div class="section">
-                <div class="section-header">
-                    <h2>⚠️ إجراءات خطيرة</h2>
-                </div>
-                <div style="display:flex; gap:12px; flex-wrap:wrap;">
-                    <button class="btn btn-danger" onclick="resetAllData()">🗑️ مسح جميع البيانات</button>
-                    <button class="btn btn-danger" onclick="resetRooms()">🔄 إعادة تعيين جميع الغرف</button>
-                </div>
-            </div>
+        <!-- رسالة رفض الدخول -->
+        <div class="admin-access-denied" id="accessDenied" style="display:none;">
+            <div class="icon">🚫</div>
+            <h1>غير مصرح بالدخول</h1>
+            <p>هذه الصفحة مخصصة للمشرفين فقط.</p>
+            <a href="index.html" class="btn btn-secondary" style="margin-top:20px;display:inline-block;">🏠 العودة للرئيسية</a>
         </div>
-
-        <!-- ============================================================
-        📋 تبويب سجل التدقيق
-        ============================================================ -->
-        <div class="tab-content" id="tab-audit">
-            <div class="section">
-                <div class="section-header">
-                    <h2>📋 سجل التدقيق</h2>
-                    <span class="badge" id="auditCount">0 سجل</span>
-                </div>
-
-                <div class="search-bar">
-                    <input type="text" id="auditSearch" placeholder="🔍 بحث...">
-                    <select id="auditFilter">
-                        <option value="all">الكل</option>
-                        <option value="login">تسجيل دخول</option>
-                        <option value="register">تسجيل جديد</option>
-                        <option value="join_room">انضمام غرفة</option>
-                        <option value="admin_deposit">إيداع مشرف</option>
-                        <option value="admin_ban">حظر</option>
-                        <option value="admin_unban">فك حظر</option>
-                    </select>
-                    <button class="btn btn-gold btn-sm" onclick="loadAudit()">🔄 تحديث</button>
-                </div>
-
-                <div class="table-wrapper">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>التاريخ</th>
-                                <th>المستخدم</th>
-                                <th>الإجراء</th>
-                                <th>التفاصيل</th>
-                                <th>المستوى</th>
-                            </tr>
-                        </thead>
-                        <tbody id="auditTableBody">
-                            <tr><td colspan="5" style="text-align:center; padding:30px; color:var(--text-muted);">جاري التحميل...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
     </div>
 
-    <!-- ============================================================
-    📜 JavaScript
-    ============================================================ -->
     <script>
-        // ============================================================
-        // 🔐 المصادقة والصلاحيات
-        // ============================================================
-        const ADMIN_SECRET = localStorage.getItem('adminToken') || 'authenticated';
-        const TELEGRAM_ID = localStorage.getItem('telegramId');
+        // ============================================
+        // 🎯 إعدادات
+        // ============================================
+        const ADMIN_TELEGRAM_ID = '7011476249';
+        const ADMIN_SECRET = 'admin_secret_2026';
+        const SERVER_URL = window.location.origin;
 
-        // التحقق من صلاحية المشرف
-        async function checkAdminAccess() {
-            try {
-                const response = await fetch('/api/admin/stats?adminToken=' + ADMIN_SECRET);
-                const data = await response.json();
-                if (!data.success) {
-                    showToast('❌ غير مصرح', 'يجب تسجيل الدخول كمشرف أولاً', 'error');
-                    setTimeout(() => {
-                        window.location.href = '/';
-                    }, 2000);
-                    return false;
-                }
-                return true;
-            } catch (error) {
-                showToast('❌ خطأ', 'فشل التحقق من صلاحيات المشرف', 'error');
+        // ============================================
+        // 📱 استخلاص معرف المستخدم
+        // ============================================
+        function getTelegramId() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('user_id') || params.get('telegram_id') || null;
+        }
+
+        // ============================================
+        // 🔐 التحقق من صلاحيات المشرف
+        // ============================================
+        function checkAdmin() {
+            const telegramId = getTelegramId();
+            
+            if (telegramId !== ADMIN_TELEGRAM_ID) {
+                document.getElementById('adminContent').style.display = 'none';
+                document.getElementById('accessDenied').style.display = 'block';
                 return false;
             }
+
+            document.getElementById('adminId').textContent = telegramId;
+            document.getElementById('adminContent').style.display = 'block';
+            document.getElementById('accessDenied').style.display = 'none';
+            return true;
         }
 
-        // ============================================================
-        // 📊 تحميل الإحصائيات
-        // ============================================================
-        async function loadStats() {
+        // ============================================
+        // 📊 تحديث الإحصائيات
+        // ============================================
+        async function refreshStats() {
             try {
-                const response = await fetch('/api/admin/stats?adminToken=' + ADMIN_SECRET);
-                const data = await response.json();
+                const res = await fetch(`${SERVER_URL}/api/admin/stats?adminToken=${ADMIN_SECRET}`);
+                const data = await res.json();
+                
+                if (data.success && data.stats) {
+                    document.getElementById('totalUsers').textContent = data.stats.users || 0;
+                    document.getElementById('totalBalance').textContent = data.stats.total_balance || 0;
+                    document.getElementById('activeRooms').textContent = data.stats.active_rooms || 0;
+                    document.getElementById('waitingRooms').textContent = data.stats.waiting_rooms || 0;
+                    document.getElementById('totalGames').textContent = data.stats.total_games || 0;
+                }
+            } catch (error) {
+                console.error('Stats error:', error);
+                alert('❌ خطأ في تحميل الإحصائيات');
+            }
+        }
 
+        // ============================================
+        // 💰 إدارة الأرصدة
+        // ============================================
+        async function adminBalance(action) {
+            const userId = document.getElementById('targetUserId').value.trim();
+            const amount = parseInt(document.getElementById('amount').value);
+            
+            if (!userId) {
+                alert('الرجاء إدخال معرف المستخدم');
+                return;
+            }
+            if (!amount || amount < 1) {
+                alert('الرجاء إدخال مبلغ صحيح');
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${SERVER_URL}/api/admin/balance`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        adminToken: ADMIN_SECRET,
+                        userId: userId,
+                        amount: amount,
+                        action: action
+                    })
+                });
+                
+                const data = await res.json();
                 if (data.success) {
-                    const stats = data.stats;
-                    document.getElementById('totalUsers').innerText = stats.total_users || 0;
-                    document.getElementById('totalBalance').innerText = (stats.total_balance || 0) + ' $';
-                    document.getElementById('totalGames').innerText = stats.total_games || 0;
-                    document.getElementById('totalWins').innerText = stats.total_wins || 0;
-                    document.getElementById('bannedUsers').innerText = stats.banned_count || 0;
-                    document.getElementById('adminCount').innerText = stats.admin_count || 0;
-                    document.getElementById('activeGames').innerHTML = 'نشطة: ' + (stats.active_games || 0);
-                    document.getElementById('todayRevenue').innerText = (stats.today_revenue || 0) + ' $';
-                    document.getElementById('todayTransactions').innerText = 'معاملات: ' + (stats.today_transactions || 0);
-
-                    // حساب نسبة الفوز
-                    const totalGames = stats.total_games || 0;
-                    const totalWins = stats.total_wins || 0;
-                    const winRate = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0;
-                    document.getElementById('winRate').innerText = 'نسبة الفوز: ' + winRate + '%';
-
-                    // المستخدمين الجدد اليوم
-                    // يتم حسابها من البيانات
+                    alert(`✅ تم ${action === 'deposit' ? 'إيداع' : 'سحب'} ${amount}$ للمستخدم ${userId}`);
+                    refreshStats();
+                } else {
+                    alert('❌ ' + (data.error || 'فشل العملية'));
                 }
             } catch (error) {
-                console.error('❌ Error loading stats:', error);
-                showToast('❌ خطأ', 'فشل تحميل الإحصائيات', 'error');
+                alert('❌ خطأ في الاتصال بالخادم');
             }
         }
 
-        // ============================================================
-        // 👥 تحميل قائمة اللاعبين
-        // ============================================================
-        async function loadPlayers() {
+        // ============================================
+        // 🏠 تحديث إعدادات الغرفة
+        // ============================================
+        async function updateRoomType() {
+            const typeName = document.getElementById('roomType').value;
+            const maxSeats = parseInt(document.getElementById('maxPlayers').value);
+            const seatPrice = parseInt(document.getElementById('seatPrice').value);
+            
+            if (!typeName || maxSeats < 2 || maxSeats > 16 || seatPrice < 1) {
+                alert('الرجاء إدخال قيم صحيحة');
+                return;
+            }
+            
             try {
-                const response = await fetch('/api/admin/stats?adminToken=' + ADMIN_SECRET);
-                const data = await response.json();
-
-                if (data.success && data.users) {
-                    const tbody = document.getElementById('playersTableBody');
-                    document.getElementById('playersCount').innerText = data.users.length + ' لاعب';
-
-                    if (data.users.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px; color:var(--text-muted);">لا يوجد لاعبين</td></tr>';
-                        return;
-                    }
-
-                    tbody.innerHTML = data.users.map(user => `
-                        <tr>
-                            <td>
-                                <strong>${user.username || 'غير معروف'}</strong>
-                                <br><small style="color:var(--text-muted);">${user.email || ''}</small>
-                            </td>
-                            <td>${user.telegram_id || '-'}</td>
-                            <td style="color:var(--gold); font-weight:700;">${user.balance || 100} $</td>
-                            <td>${user.games_played || 0}</td>
-                            <td>${user.wins || 0}</td>
-                            <td>${user.total_kills || 0}</td>
-                            <td>
-                                ${user.is_admin ? '<span class="status-badge admin">👑 مشرف</span>' : ''}
-                                ${user.is_banned ? '<span class="status-badge banned">🚫 محظور</span>' : ''}
-                                ${!user.is_admin && !user.is_banned ? '<span class="status-badge active">✅ نشط</span>' : ''}
-                            </td>
-                            <td>
-                                <button class="btn btn-success btn-sm" onclick="quickDeposit('${user.telegram_id}', 10)">+10$</button>
-                                <button class="btn btn-danger btn-sm" onclick="quickWithdraw('${user.telegram_id}', 10)">-10$</button>
-                                ${!user.is_banned ? `<button class="btn btn-danger btn-sm" onclick="quickBan('${user.telegram_id}')">🚫</button>` : 
-                                `<button class="btn btn-info btn-sm" onclick="quickUnban('${user.telegram_id}')">✅</button>`}
-                            </td>
-                        </tr>
-                    `).join('');
+                const res = await fetch(`${SERVER_URL}/api/admin/roomType`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        adminToken: ADMIN_SECRET,
+                        typeName: typeName,
+                        maxSeats: maxSeats,
+                        seatPrice: seatPrice
+                    })
+                });
+                
+                const data = await res.json();
+                if (data.success) {
+                    alert(`✅ تم تحديث ${typeName} بنجاح`);
+                    refreshRooms();
+                } else {
+                    alert('❌ ' + (data.error || 'فشل التحديث'));
                 }
             } catch (error) {
-                console.error('❌ Error loading players:', error);
-                showToast('❌ خطأ', 'فشل تحميل قائمة اللاعبين', 'error');
+                alert('❌ خطأ في الاتصال بالخادم');
             }
         }
 
-        // ============================================================
-        // 🏠 تحميل الغرف
-        // ============================================================
-        async function loadRooms() {
+        // ============================================
+        // 📋 تحديث قائمة الغرف
+        // ============================================
+        async function refreshRooms() {
             try {
-                const response = await fetch('/api/admin/rooms?adminToken=' + ADMIN_SECRET);
-                const data = await response.json();
-
+                const res = await fetch(`${SERVER_URL}/api/rooms`);
+                const data = await res.json();
+                
+                const tbody = document.getElementById('roomsBody');
                 if (data.success && data.rooms) {
-                    const grid = document.getElementById('roomsGrid');
-                    document.getElementById('roomsCount').innerText = data.rooms.length + ' غرفة';
-
                     if (data.rooms.length === 0) {
-                        grid.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted);">لا توجد غرف</div>';
+                        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#888;">لا توجد غرف</td></tr>';
                         return;
                     }
-
-                    grid.innerHTML = data.rooms.map(room => `
-                        <div class="room-card">
-                            <div class="room-name">🏠 ${room.name}</div>
-                            <div class="room-details">
-                                <span>📋 ${room.type}</span>
-                                <span>👥 ${room.players_count || 0}/${room.max_seats}</span>
-                                <span>💰 ${room.seat_price || 1}$</span>
-                                <span class="status-badge ${room.status}">${getStatusText(room.status)}</span>
-                            </div>
-                            <div style="margin-top:8px; font-size:12px; color:var(--text-muted);">
-                                ${room.player_names ? '👤 ' + room.player_names.slice(0, 3).join(', ') + (room.player_names.length > 3 ? ' ...' : '') : 'لا يوجد لاعبين'}
-                            </div>
-                        </div>
+                    
+                    const statusMap = {
+                        'waiting': '<span class="badge badge-success">⏳ في الانتظار</span>',
+                        'active': '<span class="badge badge-warning">⚔️ نشطة</span>',
+                        'ended': '<span class="badge badge-danger">✅ منتهية</span>'
+                    };
+                    
+                    tbody.innerHTML = data.rooms.map(room => `
+                        <tr>
+                            <td>${room.name}</td>
+                            <td>${room.typeName || 'غير محدد'}</td>
+                            <td>${room.players || 0}/${room.maxSeats || 0}</td>
+                            <td>${statusMap[room.status] || room.status}</td>
+                        </tr>
                     `).join('');
                 }
             } catch (error) {
-                console.error('❌ Error loading rooms:', error);
-                showToast('❌ خطأ', 'فشل تحميل الغرف', 'error');
+                console.error('Rooms error:', error);
             }
         }
 
-        function getStatusText(status) {
-            const map = {
-                'waiting': 'في الانتظار',
-                'active': 'نشطة',
-                'ended': 'منتهية'
-            };
-            return map[status] || status;
-        }
-
-        // ============================================================
-        // 💰 تحميل المعاملات
-        // ============================================================
-        async function loadTransactions() {
-            try {
-                // نستخدم API الإحصائيات للحصول على المعاملات
-                const response = await fetch('/api/admin/stats?adminToken=' + ADMIN_SECRET);
-                const data = await response.json();
-
-                if (data.success) {
-                    const tbody = document.getElementById('transactionsTableBody');
-                    document.getElementById('transactionsCount').innerText = '0 معاملة';
-
-                    // عرض المعاملات من البيانات المتاحة
-                    // في الإنتاج، ستكون هناك API مخصصة للمعاملات
-                    tbody.innerHTML = `
-                        <tr>
-                            <td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">
-                                📊 سيتم عرض المعاملات هنا قريباً
-                                <br><small>API مخصص للمعاملات قيد التطوير</small>
-                            </td>
-                        </tr>
-                    `;
-                }
-            } catch (error) {
-                console.error('❌ Error loading transactions:', error);
-            }
-        }
-
-        // ============================================================
-        // 📋 تحميل سجل التدقيق
-        // ============================================================
-        async function loadAudit() {
-            try {
-                const tbody = document.getElementById('auditTableBody');
-                document.getElementById('auditCount').innerText = '0 سجل';
-
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="5" style="text-align:center; padding:30px; color:var(--text-muted);">
-                            📋 سجل التدقيق قيد التطوير
-                            <br><small>سيتم عرض جميع الإجراءات هنا</small>
-                        </td>
-                    </tr>
-                `;
-            } catch (error) {
-                console.error('❌ Error loading audit:', error);
-            }
-        }
-
-        // ============================================================
-        // 💰 إجراءات سريعة
-        // ============================================================
-        async function quickDeposit(telegramId, amount) {
-            try {
-                const response = await fetch('/api/admin/deposit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        adminToken: ADMIN_SECRET,
-                        targetTelegramId: telegramId,
-                        amount: amount,
-                        reason: 'إيداع سريع من لوحة التحكم'
-                    })
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    showToast('✅ نجاح', `تم إيداع ${amount}$ للمستخدم ${telegramId}`, 'success');
-                    loadPlayers();
-                    loadStats();
-                } else {
-                    showToast('❌ خطأ', data.error || 'فشل الإيداع', 'error');
-                }
-            } catch (error) {
-                showToast('❌ خطأ', 'فشل الاتصال بالخادم', 'error');
-            }
-        }
-
-        async function quickWithdraw(telegramId, amount) {
-            try {
-                const response = await fetch('/api/admin/deposit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        adminToken: ADMIN_SECRET,
-                        targetTelegramId: telegramId,
-                        amount: -amount,
-                        reason: 'سحب سريع من لوحة التحكم'
-                    })
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    showToast('✅ نجاح', `تم سحب ${amount}$ من المستخدم ${telegramId}`, 'success');
-                    loadPlayers();
-                    loadStats();
-                } else {
-                    showToast('❌ خطأ', data.error || 'فشل السحب', 'error');
-                }
-            } catch (error) {
-                showToast('❌ خطأ', 'فشل الاتصال بالخادم', 'error');
-            }
-        }
-
-        async function quickBan(telegramId) {
-            if (!confirm(`⚠️ هل أنت متأكد من حظر المستخدم ${telegramId}؟`)) return;
-
-            try {
-                const response = await fetch('/api/admin/ban', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        adminToken: ADMIN_SECRET,
-                        targetTelegramId: telegramId,
-                        reason: 'تم الحظر من لوحة التحكم',
-                        duration: null
-                    })
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    showToast('✅ نجاح', `تم حظر المستخدم ${telegramId}`, 'success');
-                    loadPlayers();
-                } else {
-                    showToast('❌ خطأ', data.error || 'فشل الحظر', 'error');
-                }
-            } catch (error) {
-                showToast('❌ خطأ', 'فشل الاتصال بالخادم', 'error');
-            }
-        }
-
-        async function quickUnban(telegramId) {
-            if (!confirm(`⚠️ هل أنت متأكد من فك الحظر عن المستخدم ${telegramId}؟`)) return;
-
-            try {
-                const response = await fetch('/api/admin/unban', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        adminToken: ADMIN_SECRET,
-                        targetTelegramId: telegramId
-                    })
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    showToast('✅ نجاح', `تم فك الحظر عن المستخدم ${telegramId}`, 'success');
-                    loadPlayers();
-                } else {
-                    showToast('❌ خطأ', data.error || 'فشل فك الحظر', 'error');
-                }
-            } catch (error) {
-                showToast('❌ خطأ', 'فشل الاتصال بالخادم', 'error');
-            }
-        }
-
-        // ============================================================
-        // 💰 إدارة الأرصدة (النموذج)
-        // ============================================================
-        async function adminDeposit() {
-            const telegramId = document.getElementById('targetTelegramId').value.trim();
-            const amount = parseInt(document.getElementById('balanceAmount').value);
-            const reason = document.getElementById('balanceReason').value.trim() || 'إيداع من المشرف';
-
-            if (!telegramId || !amount || amount <= 0) {
-                showToast('⚠️ تنبيه', 'الرجاء إدخال معرف تيليغرام ومبلغ صحيح', 'warning');
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/admin/deposit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        adminToken: ADMIN_SECRET,
-                        targetTelegramId: telegramId,
-                        amount: amount,
-                        reason: reason
-                    })
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    showToast('✅ نجاح', `تم إيداع ${amount}$ للمستخدم ${telegramId}`, 'success');
-                    document.getElementById('targetTelegramId').value = '';
-                    document.getElementById('balanceAmount').value = '';
-                    document.getElementById('balanceReason').value = '';
-                    loadPlayers();
-                    loadStats();
-                } else {
-                    showToast('❌ خطأ', data.error || 'فشل الإيداع', 'error');
-                }
-            } catch (error) {
-                showToast('❌ خطأ', 'فشل الاتصال بالخادم', 'error');
-            }
-        }
-
-        async function adminWithdraw() {
-            const telegramId = document.getElementById('targetTelegramId').value.trim();
-            const amount = parseInt(document.getElementById('balanceAmount').value);
-            const reason = document.getElementById('balanceReason').value.trim() || 'سحب من المشرف';
-
-            if (!telegramId || !amount || amount <= 0) {
-                showToast('⚠️ تنبيه', 'الرجاء إدخال معرف تيليغرام ومبلغ صحيح', 'warning');
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/admin/deposit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        adminToken: ADMIN_SECRET,
-                        targetTelegramId: telegramId,
-                        amount: -amount,
-                        reason: reason
-                    })
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    showToast('✅ نجاح', `تم سحب ${amount}$ من المستخدم ${telegramId}`, 'success');
-                    document.getElementById('targetTelegramId').value = '';
-                    document.getElementById('balanceAmount').value = '';
-                    document.getElementById('balanceReason').value = '';
-                    loadPlayers();
-                    loadStats();
-                } else {
-                    showToast('❌ خطأ', data.error || 'فشل السحب', 'error');
-                }
-            } catch (error) {
-                showToast('❌ خطأ', 'فشل الاتصال بالخادم', 'error');
-            }
-        }
-
-        async function adminBan() {
-            const telegramId = document.getElementById('targetTelegramId').value.trim();
-            if (!telegramId) {
-                showToast('⚠️ تنبيه', 'الرجاء إدخال معرف تيليغرام', 'warning');
-                return;
-            }
-
-            if (!confirm(`⚠️ هل أنت متأكد من حظر المستخدم ${telegramId}؟`)) return;
-
-            try {
-                const response = await fetch('/api/admin/ban', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        adminToken: ADMIN_SECRET,
-                        targetTelegramId: telegramId,
-                        reason: document.getElementById('balanceReason').value.trim() || 'تم الحظر من لوحة التحكم',
-                        duration: null
-                    })
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    showToast('✅ نجاح', `تم حظر المستخدم ${telegramId}`, 'success');
-                    document.getElementById('targetTelegramId').value = '';
-                    loadPlayers();
-                } else {
-                    showToast('❌ خطأ', data.error || 'فشل الحظر', 'error');
-                }
-            } catch (error) {
-                showToast('❌ خطأ', 'فشل الاتصال بالخادم', 'error');
-            }
-        }
-
-        async function adminUnban() {
-            const telegramId = document.getElementById('targetTelegramId').value.trim();
-            if (!telegramId) {
-                showToast('⚠️ تنبيه', 'الرجاء إدخال معرف تيليغرام', 'warning');
-                return;
-            }
-
-            if (!confirm(`⚠️ هل أنت متأكد من فك الحظر عن المستخدم ${telegramId}؟`)) return;
-
-            try {
-                const response = await fetch('/api/admin/unban', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        adminToken: ADMIN_SECRET,
-                        targetTelegramId: telegramId
-                    })
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    showToast('✅ نجاح', `تم فك الحظر عن المستخدم ${telegramId}`, 'success');
-                    document.getElementById('targetTelegramId').value = '';
-                    loadPlayers();
-                } else {
-                    showToast('❌ خطأ', data.error || 'فشل فك الحظر', 'error');
-                }
-            } catch (error) {
-                showToast('❌ خطأ', 'فشل الاتصال بالخادم', 'error');
-            }
-        }
-
-        // ============================================================
-        // ⚙️ حفظ الإعدادات
-        // ============================================================
-        async function saveSettings() {
-            const gameDuration = parseInt(document.getElementById('gameDuration').value);
-            const maxPlayers = parseInt(document.getElementById('maxPlayersPerRoom').value);
-            const roomsPerType = parseInt(document.getElementById('roomsPerType').value);
-
-            if (!gameDuration || gameDuration < 60 || gameDuration > 600) {
-                showToast('⚠️ تنبيه', 'مدة المباراة يجب أن تكون بين 60 و 600 ثانية', 'warning');
-                return;
-            }
-
-            if (!maxPlayers || maxPlayers < 2 || maxPlayers > 16) {
-                showToast('⚠️ تنبيه', 'عدد اللاعبين يجب أن يكون بين 2 و 16', 'warning');
-                return;
-            }
-
-            try {
-                // حفظ الإعدادات في الخادم
-                const response = await fetch('/api/admin/settings', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        adminToken: ADMIN_SECRET,
-                        gameDuration: gameDuration,
-                        maxPlayersPerRoom: maxPlayers,
-                        roomsPerType: roomsPerType
-                    })
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    showToast('✅ نجاح', 'تم حفظ الإعدادات بنجاح', 'success');
-                } else {
-                    showToast('❌ خطأ', data.error || 'فشل حفظ الإعدادات', 'error');
-                }
-            } catch (error) {
-                showToast('❌ خطأ', 'فشل الاتصال بالخادم', 'error');
-            }
-        }
-
-        // ============================================================
-        // 🗑️ إجراءات خطيرة
-        // ============================================================
+        // ============================================
+        // 🗑️ مسح جميع البيانات
+        // ============================================
         async function resetAllData() {
             if (!confirm('⚠️ تحذير: سيتم مسح جميع بيانات اللاعبين نهائياً! هل أنت متأكد؟')) return;
-            if (!confirm('⚠️ تأكيد نهائي: اكتب "مسح" في النافذة التالية للتأكيد')) return;
-
-            const confirmText = prompt('اكتب "مسح" للتأكيد النهائي');
-            if (confirmText !== 'مسح') {
-                showToast('⚠️ تنبيه', 'تم إلغاء العملية', 'warning');
-                return;
+            if (!confirm('⚠️ تأكيد نهائي: اكتب "مسح" في المربع التالي')) {
+                const confirmText = prompt('اكتب "مسح" للتأكيد النهائي');
+                if (confirmText !== 'مسح') return;
             }
-
+            
             try {
-                const response = await fetch('/api/admin/reset', {
+                const res = await fetch(`${SERVER_URL}/api/admin/resetAll`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ adminToken: ADMIN_SECRET })
                 });
-                const data = await response.json();
-
+                
+                const data = await res.json();
                 if (data.success) {
-                    showToast('✅ نجاح', 'تم مسح جميع البيانات بنجاح', 'success');
-                    loadStats();
-                    loadPlayers();
+                    alert('✅ تم مسح جميع البيانات بنجاح');
+                    refreshStats();
+                    refreshRooms();
                 } else {
-                    showToast('❌ خطأ', data.error || 'فشل مسح البيانات', 'error');
+                    alert('❌ ' + (data.error || 'فشل المسح'));
                 }
             } catch (error) {
-                showToast('❌ خطأ', 'فشل الاتصال بالخادم', 'error');
+                alert('❌ خطأ في الاتصال بالخادم');
             }
         }
 
-        async function resetRooms() {
-            if (!confirm('⚠️ هل أنت متأكد من إعادة تعيين جميع الغرف؟')) return;
-
-            try {
-                const response = await fetch('/api/admin/reset_rooms', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ adminToken: ADMIN_SECRET })
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    showToast('✅ نجاح', 'تم إعادة تعيين جميع الغرف بنجاح', 'success');
-                    loadRooms();
-                } else {
-                    showToast('❌ خطأ', data.error || 'فشل إعادة تعيين الغرف', 'error');
-                }
-            } catch (error) {
-                showToast('❌ خطأ', 'فشل الاتصال بالخادم', 'error');
-            }
+        // ============================================
+        // 🚀 تهيئة الصفحة
+        // ============================================
+        function init() {
+            if (!checkAdmin()) return;
+            
+            refreshStats();
+            refreshRooms();
+            
+            // تحديث تلقائي كل 30 ثانية
+            setInterval(() => {
+                refreshStats();
+                refreshRooms();
+            }, 30000);
         }
 
-        // ============================================================
-        // 🔄 تحديث الكل
-        // ============================================================
-        async function refreshAll() {
-            document.getElementById('loadingOverlay').classList.add('show');
-            try {
-                await Promise.all([
-                    loadStats(),
-                    loadPlayers(),
-                    loadRooms(),
-                    loadTransactions(),
-                    loadAudit()
-                ]);
-                showToast('✅ نجاح', 'تم تحديث جميع البيانات', 'success');
-            } catch (error) {
-                showToast('❌ خطأ', 'فشل تحديث البيانات', 'error');
-            }
-            document.getElementById('loadingOverlay').classList.remove('show');
-        }
-
-        // ============================================================
-        // 🔔 الإشعارات (Toast)
-        // ============================================================
-        function showToast(title, message, type = 'info') {
-            const toast = document.getElementById('toast');
-            const titleEl = document.getElementById('toastTitle');
-            const messageEl = document.getElementById('toastMessage');
-
-            toast.className = 'toast ' + type;
-            titleEl.textContent = title;
-            messageEl.textContent = message;
-
-            toast.classList.add('show');
-            clearTimeout(toast._timeout);
-            toast._timeout = setTimeout(() => {
-                toast.classList.remove('show');
-            }, 5000);
-        }
-
-        // ============================================================
-        // 📑 علامات التبويب
-        // ============================================================
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-
-                this.classList.add('active');
-                document.getElementById('tab-' + this.dataset.tab).classList.add('active');
-            });
-        });
-
-        // ============================================================
-        // 🔍 البحث والفلترة
-        // ============================================================
-        document.getElementById('playerSearch').addEventListener('input', function() {
-            const search = this.value.toLowerCase();
-            const rows = document.querySelectorAll('#playersTableBody tr');
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(search) ? '' : 'none';
-            });
-        });
-
-        document.getElementById('roomSearch').addEventListener('input', function() {
-            const search = this.value.toLowerCase();
-            const cards = document.querySelectorAll('#roomsGrid .room-card');
-            cards.forEach(card => {
-                const text = card.textContent.toLowerCase();
-                card.style.display = text.includes(search) ? '' : 'none';
-            });
-        });
-
-        // ============================================================
-        // 🚪 تسجيل الخروج
-        // ============================================================
-        document.getElementById('logoutBtn').addEventListener('click', function() {
-            localStorage.removeItem('adminToken');
-            localStorage.removeItem('telegramId');
-            window.location.href = '/';
-        });
-
-        // ============================================================
-        // 🚀 التهيئة
-        // ============================================================
-        async function init() {
-            const hasAccess = await checkAdminAccess();
-            if (hasAccess) {
-                await refreshAll();
-                // تحديث تلقائي كل 30 ثانية
-                setInterval(() => {
-                    loadStats();
-                    loadPlayers();
-                    loadRooms();
-                }, 30000);
-            }
-        }
-
-        init();
-
-        // تصدير الدوال للاستخدام في HTML
-        window.loadPlayers = loadPlayers;
-        window.loadRooms = loadRooms;
-        window.loadTransactions = loadTransactions;
-        window.loadAudit = loadAudit;
-        window.loadStats = loadStats;
-        window.refreshAll = refreshAll;
-        window.quickDeposit = quickDeposit;
-        window.quickWithdraw = quickWithdraw;
-        window.quickBan = quickBan;
-        window.quickUnban = quickUnban;
-        window.adminDeposit = adminDeposit;
-        window.adminWithdraw = adminWithdraw;
-        window.adminBan = adminBan;
-        window.adminUnban = adminUnban;
-        window.saveSettings = saveSettings;
-        window.resetAllData = resetAllData;
-        window.resetRooms = resetRooms;
-        window.showToast = showToast;
+        document.addEventListener('DOMContentLoaded', init);
     </script>
-
 </body>
 </html>

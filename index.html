@@ -1,715 +1,687 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Battle Tanks Elite - تسجيل الدخول</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Battle Tanks - معركة الدبابات</title>
     <style>
-        /* ============================================================
-           🎨 الأنماط المتقدمة مع تأثيرات احترافية
-           ============================================================ */
+        /* ============================================
+           🎨 الأنماط العامة والخلفية المتحركة
+           ============================================ */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        :root {
-            --gold: #d4af37;
-            --gold-dark: #b8860b;
-            --gold-light: #f0d060;
-            --dark: #0a0f1a;
-            --darker: #05070c;
-            --text: #e8e8e8;
-            --text-muted: #8a9aa8;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 0.6; }
-            50% { opacity: 1; }
-        }
-
-        @keyframes shimmer {
-            0% { background-position: -200% center; }
-            100% { background-position: 200% center; }
-        }
-
-        @keyframes orbit {
-            0% { transform: rotate(0deg) translateX(120px) rotate(0deg); }
-            100% { transform: rotate(360deg) translateX(120px) rotate(-360deg); }
         }
 
         body {
-            font-family: 'Cairo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: radial-gradient(ellipse at 30% 20%, #1a2a3a 0%, var(--dark) 50%, var(--darker) 100%);
-            color: var(--text);
+            font-family: 'Segoe UI', 'Cairo', Tahoma, Geneva, Verdana, sans-serif;
             min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            background: #0a0f1a;
             overflow: hidden;
             position: relative;
         }
 
-        /* ============================================================
-           🌟 خلفية متحركة مع جسيمات
-           ============================================================ */
-        .bg-particles {
+        /* 🌌 الخلفية المتحركة */
+        .bg-animation {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            pointer-events: none;
             z-index: 0;
+            background: linear-gradient(135deg, #0a0f1a 0%, #1a1a2e 30%, #16213e 60%, #0a0f1a 100%);
             overflow: hidden;
         }
 
-        .bg-particles span {
+        .bg-animation::before {
+            content: '';
             position: absolute;
-            width: 4px;
-            height: 4px;
-            background: var(--gold);
-            border-radius: 50%;
-            opacity: 0.15;
-            animation: float-particle linear infinite;
+            width: 200%;
+            height: 200%;
+            top: -50%;
+            left: -50%;
+            background: 
+                radial-gradient(ellipse at 20% 50%, rgba(212, 175, 55, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 50%, rgba(212, 175, 55, 0.05) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 20%, rgba(212, 175, 55, 0.03) 0%, transparent 40%);
+            animation: bgMove 30s ease-in-out infinite;
         }
 
-        @keyframes float-particle {
-            0% { transform: translateY(100vh) scale(0); opacity: 0; }
-            10% { opacity: 0.15; }
-            90% { opacity: 0.15; }
-            100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+        @keyframes bgMove {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(5%, -5%) rotate(1deg); }
+            66% { transform: translate(-5%, 5%) rotate(-1deg); }
         }
 
-        .bg-glow {
+        /* ✨ النجوم */
+        .stars {
             position: fixed;
-            width: 600px;
-            height: 600px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(212, 175, 55, 0.05), transparent 70%);
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             z-index: 0;
-            animation: pulse 4s ease-in-out infinite;
+            pointer-events: none;
         }
 
-        /* ============================================================
-           📦 حاوية تسجيل الدخول
-           ============================================================ */
-        .container {
-            background: rgba(10, 15, 30, 0.92);
-            backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px);
-            padding: 50px 40px;
-            border-radius: 48px;
+        .star {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            animation: twinkle var(--duration) ease-in-out infinite alternate;
+        }
+
+        @keyframes twinkle {
+            0% { opacity: 0.2; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1.2); }
+        }
+
+        /* ============================================
+           🚫 شاشة الخطأ (عند عدم وجود معرف)
+           ============================================ */
+        .error-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 9999;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 30px;
+            backdrop-filter: blur(10px);
+        }
+
+        .error-screen .icon {
+            font-size: 80px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .error-screen h1 {
+            color: #ff4444;
+            font-size: 32px;
             text-align: center;
-            max-width: 440px;
-            width: 92%;
-            border: 1px solid rgba(212, 175, 55, 0.3);
-            box-shadow: 
-                0 30px 80px rgba(0,0,0,0.8),
-                0 0 60px rgba(212, 175, 55, 0.05),
-                inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+
+        .error-screen p {
+            color: #aaa;
+            font-size: 18px;
+            text-align: center;
+            max-width: 400px;
+            line-height: 1.8;
+        }
+
+        .error-screen .btn-telegram {
+            padding: 16px 40px;
+            background: #0088cc;
+            border: none;
+            border-radius: 50px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .error-screen .btn-telegram:hover {
+            transform: scale(1.05);
+        }
+
+        /* ============================================
+           📊 الشريط العلوي (Header)
+           ============================================ */
+        .header {
             position: relative;
             z-index: 1;
-            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            background: rgba(10, 15, 30, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 20px;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            margin-bottom: 30px;
         }
 
-        .container:hover {
-            transform: translateY(-5px);
-        }
-
-        /* ============================================================
-           🏷️ الشعار والعنوان
-           ============================================================ */
-        .logo-wrapper {
-            position: relative;
-            display: inline-block;
-            margin-bottom: 10px;
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
         }
 
         .logo {
-            font-size: 72px;
-            display: inline-block;
-            animation: float 3s ease-in-out infinite;
-            filter: drop-shadow(0 0 30px rgba(212, 175, 55, 0.2));
+            font-size: 24px;
+            font-weight: bold;
+            color: #d4af37;
+            text-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
         }
 
-        .logo-ring {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 100px;
-            height: 100px;
-            border: 2px solid rgba(212, 175, 55, 0.1);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            animation: orbit 12s linear infinite;
+        .logo span {
+            color: #fff;
         }
 
-        .logo-ring::before {
-            content: '✦';
-            position: absolute;
-            top: -8px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: var(--gold);
-            font-size: 12px;
-        }
-
-        h1 {
-            color: var(--gold);
-            font-size: 32px;
-            font-weight: 900;
-            letter-spacing: 3px;
-            text-shadow: 0 0 30px rgba(212, 175, 55, 0.15);
-            margin-top: 5px;
-        }
-
-        h1 .elite {
-            font-size: 14px;
-            letter-spacing: 4px;
-            display: block;
-            color: var(--gold-light);
-            opacity: 0.7;
-            font-weight: 400;
-            margin-top: -2px;
-        }
-
-        .subtitle {
-            color: var(--text-muted);
-            margin: 8px 0 30px;
-            font-size: 16px;
-            letter-spacing: 1px;
-        }
-
-        .subtitle span {
-            color: var(--gold);
-        }
-
-        /* ============================================================
-           🔘 زر تيليغرام
-           ============================================================ */
-        .telegram-btn {
+        .header-right {
             display: flex;
             align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .user-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 50px;
+            padding: 8px 20px 8px 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border: 1px solid rgba(212, 175, 55, 0.2);
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #d4af37, #b8860b);
+            display: flex;
             justify-content: center;
-            gap: 14px;
-            width: 100%;
-            background: linear-gradient(135deg, #0088cc, #006699);
-            color: white;
-            padding: 18px 40px;
-            border-radius: 60px;
-            border: none;
+            align-items: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: #000;
+        }
+
+        .user-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-name {
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .user-id {
+            color: #888;
+            font-size: 11px;
+        }
+
+        .balance-card {
+            background: linear-gradient(135deg, rgba(212, 175, 55, 0.2), rgba(184, 134, 11, 0.1));
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 50px;
+            padding: 8px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .balance-card .label {
+            color: #aaa;
+            font-size: 13px;
+        }
+
+        .balance-card .value {
+            color: #d4af37;
             font-size: 20px;
-            font-weight: 700;
+            font-weight: bold;
+        }
+
+        .balance-card .currency {
+            color: #d4af37;
+            font-size: 14px;
+        }
+
+        .admin-btn {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            border: none;
+            border-radius: 50px;
+            padding: 10px 24px;
+            color: white;
+            font-weight: bold;
             cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 4px 25px rgba(0, 136, 204, 0.3);
-            font-family: 'Cairo', sans-serif;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-size: 14px;
+            display: none;
+        }
+
+        .admin-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 20px rgba(231, 76, 60, 0.4);
+        }
+
+        .admin-btn.visible {
+            display: inline-block;
+        }
+
+        /* ============================================
+           🎮 المحتوى الرئيسي
+           ============================================ */
+        .main-content {
+            position: relative;
+            z-index: 1;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 30px;
+            padding: 20px 0;
+        }
+
+        /* 🖼️ صورة اللعبة */
+        .game-image-container {
+            width: 100%;
+            max-width: 800px;
+            border-radius: 30px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+            border: 2px solid rgba(212, 175, 55, 0.3);
+            position: relative;
+        }
+
+        .game-image-container img {
+            width: 100%;
+            height: auto;
+            display: block;
+            transition: transform 0.5s;
+        }
+
+        .game-image-container:hover img {
+            transform: scale(1.02);
+        }
+
+        .game-image-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(0deg, rgba(0,0,0,0.6) 0%, transparent 50%);
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            padding: 30px;
+        }
+
+        .game-image-overlay .title {
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.8);
+        }
+
+        /* 🔘 زر العب الآن */
+        .play-btn {
+            padding: 18px 60px;
+            background: linear-gradient(135deg, #d4af37, #b8860b);
+            border: none;
+            border-radius: 60px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #000;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 8px 32px rgba(212, 175, 55, 0.3);
             position: relative;
             overflow: hidden;
         }
 
-        .telegram-btn::after {
+        .play-btn::before {
             content: '';
             position: absolute;
             top: -50%;
             left: -50%;
             width: 200%;
             height: 200%;
-            background: linear-gradient(
-                45deg,
-                transparent 30%,
-                rgba(255,255,255,0.05) 50%,
-                transparent 70%
-            );
-            animation: shimmer 3s infinite;
-            background-size: 200% 100%;
+            background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 60%);
+            animation: btnShine 3s ease-in-out infinite;
         }
 
-        .telegram-btn:hover {
-            transform: scale(1.03);
-            box-shadow: 0 8px 45px rgba(0, 136, 204, 0.5);
+        @keyframes btnShine {
+            0%, 100% { transform: translate(-30%, -30%); }
+            50% { transform: translate(30%, 30%); }
         }
 
-        .telegram-btn:active {
-            transform: scale(0.97);
+        .play-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 40px rgba(212, 175, 55, 0.5);
         }
 
-        .telegram-btn .icon {
-            font-size: 28px;
-            position: relative;
-            z-index: 1;
+        .play-btn:active {
+            transform: scale(0.95);
         }
 
-        .telegram-btn .text {
-            position: relative;
-            z-index: 1;
+        /* ============================================
+           📱 استجابة للجوال
+           ============================================ */
+        @media (max-width: 768px) {
+            .header {
+                padding: 12px 16px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+
+            .header-left {
+                justify-content: center;
+            }
+
+            .header-right {
+                justify-content: center;
+            }
+
+            .logo {
+                font-size: 18px;
+            }
+
+            .user-card {
+                padding: 5px 12px 5px 5px;
+            }
+
+            .user-avatar {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+
+            .balance-card .value {
+                font-size: 16px;
+            }
+
+            .play-btn {
+                padding: 14px 40px;
+                font-size: 20px;
+            }
+
+            .error-screen h1 {
+                font-size: 24px;
+            }
+
+            .error-screen p {
+                font-size: 16px;
+                padding: 0 20px;
+            }
         }
 
-        /* ============================================================
-           ➖ الفاصل
-           ============================================================ */
-        .or-divider {
-            margin: 25px 0;
-            color: #444;
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            letter-spacing: 2px;
+        @media (max-width: 480px) {
+            .header-right {
+                flex-wrap: wrap;
+            }
+
+            .user-info .user-name {
+                font-size: 12px;
+            }
+
+            .balance-card {
+                padding: 5px 12px;
+            }
+
+            .balance-card .value {
+                font-size: 14px;
+            }
+
+            .play-btn {
+                padding: 12px 30px;
+                font-size: 18px;
+            }
         }
 
-        .or-divider::before,
-        .or-divider::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: linear-gradient(to right, transparent, rgba(212, 175, 55, 0.3), transparent);
-        }
-
-        /* ============================================================
-           📝 نموذج تسجيل الدخول
-           ============================================================ */
-        .login-form {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .login-form .input-group {
-            position: relative;
-        }
-
-        .login-form .input-group .icon {
-            position: absolute;
-            left: 18px;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 18px;
-            opacity: 0.5;
-            pointer-events: none;
-        }
-
-        .login-form input {
+        /* ============================================
+           🔄 تحميل
+           ============================================ */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
-            padding: 16px 20px 16px 50px;
-            border-radius: 60px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(212, 175, 55, 0.2);
-            color: white;
-            font-size: 16px;
-            outline: none;
-            transition: all 0.3s ease;
-            font-family: 'Cairo', sans-serif;
-        }
-
-        .login-form input:focus {
-            border-color: var(--gold);
-            box-shadow: 0 0 30px rgba(212, 175, 55, 0.08);
-            background: rgba(255, 255, 255, 0.08);
-        }
-
-        .login-form input::placeholder {
-            color: #555;
-        }
-
-        .login-form button {
-            width: 100%;
-            padding: 16px;
-            background: linear-gradient(135deg, var(--gold), var(--gold-dark));
-            border: none;
-            border-radius: 60px;
-            font-size: 18px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 4px 25px rgba(212, 175, 55, 0.2);
-            font-family: 'Cairo', sans-serif;
-            color: var(--dark);
-            margin-top: 5px;
-        }
-
-        .login-form button:hover {
-            transform: scale(1.02);
-            box-shadow: 0 8px 40px rgba(212, 175, 55, 0.4);
-        }
-
-        .login-form button:active {
-            transform: scale(0.97);
-        }
-
-        /* ============================================================
-           📊 حالات ورسائل
-           ============================================================ */
-        .loading-spinner {
+            height: 100%;
+            background: rgba(0,0,0,0.8);
             display: none;
-            margin: 15px auto;
-            width: 40px;
-            height: 40px;
-            border: 3px solid rgba(212, 175, 55, 0.15);
-            border-top: 3px solid var(--gold);
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            backdrop-filter: blur(5px);
+        }
+
+        .loading-overlay .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(212, 175, 55, 0.1);
+            border-top: 4px solid #d4af37;
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            animation: spin 1s linear infinite;
         }
 
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-
-        .status-message {
-            margin-top: 12px;
-            padding: 12px 16px;
-            border-radius: 16px;
-            font-size: 14px;
-            display: none;
-            text-align: center;
-            animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .status-message.error {
-            display: block;
-            background: rgba(231, 76, 60, 0.15);
-            border: 1px solid rgba(231, 76, 60, 0.3);
-            color: #e74c3c;
-        }
-
-        .status-message.success {
-            display: block;
-            background: rgba(46, 204, 113, 0.15);
-            border: 1px solid rgba(46, 204, 113, 0.3);
-            color: #2ecc71;
-        }
-
-        .status-message.info {
-            display: block;
-            background: rgba(52, 152, 219, 0.15);
-            border: 1px solid rgba(52, 152, 219, 0.3);
-            color: #3498db;
-        }
-
-        /* ============================================================
-           🔒 التذييل
-           ============================================================ */
-        .footer {
-            margin-top: 25px;
-            color: #444;
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            letter-spacing: 0.5px;
-        }
-
-        .footer .lock {
-            font-size: 14px;
-        }
-
-        .footer .version {
-            color: #333;
-            font-size: 10px;
-            margin-left: 10px;
-        }
-
-        /* ============================================================
-           📱 التجاوب مع الشاشات الصغيرة
-           ============================================================ */
-        @media (max-width: 480px) {
-            .container {
-                padding: 30px 20px;
-                border-radius: 32px;
-            }
-
-            h1 {
-                font-size: 26px;
-            }
-
-            .logo {
-                font-size: 56px;
-            }
-
-            .telegram-btn {
-                font-size: 17px;
-                padding: 15px 20px;
-            }
-
-            .login-form input {
-                padding: 14px 16px 14px 44px;
-                font-size: 15px;
-            }
-
-            .login-form button {
-                font-size: 16px;
-                padding: 14px;
-            }
-        }
-
-        @media (max-width: 360px) {
-            .container {
-                padding: 20px 15px;
-                border-radius: 24px;
-            }
-
-            h1 {
-                font-size: 22px;
-            }
-
-            .logo {
-                font-size: 44px;
-            }
-
-            .telegram-btn {
-                font-size: 15px;
-                padding: 12px 16px;
-            }
-        }
-
-        /* ============================================================
-           🌙 دعم الوضع المظلم (افتراضي)
-           ============================================================ */
-        @media (prefers-color-scheme: light) {
-            body {
-                background: radial-gradient(ellipse at 30% 20%, #e8e8e8, #c0c0c0);
-            }
-            .container {
-                background: rgba(255, 255, 255, 0.95);
-                border-color: rgba(212, 175, 55, 0.4);
-            }
-            h1 { color: var(--gold-dark); }
-            .login-form input {
-                background: rgba(0, 0, 0, 0.05);
-                color: #222;
-            }
-            .login-form input::placeholder { color: #999; }
-            .subtitle { color: #666; }
-            .footer { color: #999; }
-        }
     </style>
 </head>
 <body>
 
-    <!-- ============================================================
-    🌟 خلفية متحركة
-    ============================================================ -->
-    <div class="bg-particles" id="particles"></div>
-    <div class="bg-glow"></div>
+    <!-- ============================================
+    🌌 الخلفية المتحركة
+    ============================================ -->
+    <div class="bg-animation"></div>
+    <div class="stars" id="stars"></div>
 
-    <!-- ============================================================
-    📦 حاوية تسجيل الدخول
-    ============================================================ -->
-    <div class="container">
-        <div class="logo-wrapper">
-            <div class="logo">⚔️</div>
-            <div class="logo-ring"></div>
-        </div>
-
-        <h1>
-            BATTLE TANKS
-            <span class="elite">✦ ELITE ✦</span>
-        </h1>
-
-        <p class="subtitle">
-            ساحة المعركة الإلكترونية <span>النهائية</span>
+    <!-- ============================================
+    🚫 شاشة الخطأ (عند عدم وجود معرف)
+    ============================================ -->
+    <div class="error-screen" id="errorScreen" style="display:none;">
+        <div class="icon">🔒</div>
+        <h1>⚠️ خطأ في المصادقة</h1>
+        <p>
+            يرجى تسجيل الدخول عبر بوت تيليغرام للحصول على معرف المستخدم.<br>
+            اضغط على الزر أدناه لفتح البوت.
         </p>
+        <a href="https://t.me/BattleTanksBot" target="_blank" class="btn-telegram">
+            📱 فتح بوت تيليغرام
+        </a>
+        <p style="font-size:14px;color:#666;margin-top:10px;">
+            تأكد من أن الرابط يحتوي على <code style="background:#222;padding:2px 8px;border-radius:4px;">?user_id=123456789</code>
+        </p>
+    </div>
 
-        <!-- ============================================================
-        🔘 زر تيليغرام
-        ============================================================ -->
-        <button class="telegram-btn" id="telegramLoginBtn">
-            <span class="icon">🚀</span>
-            <span class="text">تسجيل الدخول عبر تيليغرام</span>
-        </button>
+    <!-- ============================================
+    🔄 شاشة التحميل
+    ============================================ -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+    </div>
 
-        <div class="or-divider">أو</div>
+    <!-- ============================================
+    📱 المحتوى الرئيسي
+    ============================================ -->
+    <div class="container" id="mainContainer" style="display:none;">
+        <!-- 📊 الشريط العلوي -->
+        <header class="header">
+            <div class="header-left">
+                <div class="logo">⚔️ Battle <span>Tanks</span></div>
+            </div>
+            <div class="header-right">
+                <div class="user-card">
+                    <div class="user-avatar" id="userAvatar">👤</div>
+                    <div class="user-info">
+                        <span class="user-name" id="userName">اللاعب</span>
+                        <span class="user-id" id="userId">ID: 0000000</span>
+                    </div>
+                </div>
+                <div class="balance-card">
+                    <span class="label">💰 الرصيد</span>
+                    <span class="value" id="userBalance">0</span>
+                    <span class="currency">$</span>
+                </div>
+                <button class="admin-btn" id="adminBtn" onclick="window.location.href='admin.html'">
+                    ⚙️ لوحة التحكم
+                </button>
+            </div>
+        </header>
 
-        <!-- ============================================================
-        📝 نموذج تسجيل الدخول
-        ============================================================ -->
-        <form class="login-form" id="loginForm" autocomplete="off">
-            <div class="input-group">
-                <span class="icon">👤</span>
-                <input
-                    type="text"
-                    id="username"
-                    placeholder="اسم المستخدم"
-                    autocomplete="username"
-                    required
-                >
+        <!-- 🎮 المحتوى -->
+        <div class="main-content">
+            <!-- صورة اللعبة -->
+            <div class="game-image-container">
+                <img src="https://via.placeholder.com/800x400/1a1a2e/d4af37?text=Battle+Tanks+⚔️" alt="Battle Tanks" id="gameImage">
+                <div class="game-image-overlay">
+                    <span class="title">⚔️ ساحة المعركة ⚔️</span>
+                </div>
             </div>
 
-            <div class="input-group">
-                <span class="icon">🔒</span>
-                <input
-                    type="password"
-                    id="password"
-                    placeholder="كلمة المرور"
-                    autocomplete="current-password"
-                    required
-                >
-            </div>
-
-            <button type="submit">🎖️ دخول إلى المعركة</button>
-        </form>
-
-        <!-- ============================================================
-        📊 حالات ورسائل
-        ============================================================ -->
-        <div class="loading-spinner" id="loadingSpinner"></div>
-        <div class="status-message" id="statusMessage"></div>
-
-        <!-- ============================================================
-        🔒 التذييل
-        ============================================================ -->
-        <div class="footer">
-            <span class="lock">🔒</span>
-            يتم تسجيل الدخول بشكل آمن عبر تيليغرام
-            <span class="version">v6.0</span>
+            <!-- زر العب الآن -->
+            <button class="play-btn" id="playBtn">🎮 العب الآن</button>
         </div>
     </div>
 
-    <!-- ============================================================
+    <!-- ============================================
     📜 JavaScript
-    ============================================================ -->
+    ============================================ -->
     <script>
-        // ============================================================
-        // 🌟 إنشاء جسيمات الخلفية
-        // ============================================================
-        (function createParticles() {
-            const container = document.getElementById('particles');
-            for (let i = 0; i < 50; i++) {
-                const span = document.createElement('span');
-                const size = 2 + Math.random() * 4;
-                const duration = 15 + Math.random() * 25;
-                const delay = Math.random() * 20;
-                const x = Math.random() * 100;
-                span.style.cssText = `
-                    width: ${size}px;
-                    height: ${size}px;
-                    left: ${x}%;
-                    animation-duration: ${duration}s;
-                    animation-delay: ${delay}s;
-                `;
-                container.appendChild(span);
+        // ============================================
+        // 🎯 إعدادات
+        // ============================================
+        const ADMIN_TELEGRAM_ID = '7011476249';
+        const SERVER_URL = window.location.origin;
+        const BOT_URL = 'https://t.me/BattleTanksBot';
+
+        // ============================================
+        // ⭐ إنشاء النجوم
+        // ============================================
+        function createStars() {
+            const starsContainer = document.getElementById('stars');
+            for (let i = 0; i < 150; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                const size = Math.random() * 3 + 1;
+                star.style.width = size + 'px';
+                star.style.height = size + 'px';
+                star.style.left = Math.random() * 100 + '%';
+                star.style.top = Math.random() * 100 + '%';
+                star.style.setProperty('--duration', (Math.random() * 3 + 2) + 's');
+                star.style.animationDelay = (Math.random() * 5) + 's';
+                starsContainer.appendChild(star);
             }
-        })();
+        }
+        createStars();
 
-        // ============================================================
-        // 🔐 استخلاص معرف تيليغرام من الرابط
-        // ============================================================
-        const urlParams = new URLSearchParams(window.location.search);
-        const userId = urlParams.get('user_id');
-
-        if (userId) {
-            localStorage.setItem('telegramId', userId);
-            localStorage.setItem('telegramUsername', 'user_' + userId);
-            // ✅ التصحيح: استخدام game.html بدلاً من /game
-            window.location.href = 'game.html?user_id=' + userId;
+        // ============================================
+        // 📱 استخلاص معرف المستخدم من الرابط
+        // ============================================
+        function getTelegramId() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('user_id') || params.get('telegram_id') || null;
         }
 
-        // ============================================================
-        // 📱 تسجيل الدخول عبر تيليغرام
-        // ============================================================
-        document.getElementById('telegramLoginBtn').addEventListener('click', function() {
-            const statusMsg = document.getElementById('statusMessage');
-            const spinner = document.getElementById('loadingSpinner');
+        // ============================================
+        // 🔐 التحقق من المصادقة
+        // ============================================
+        function checkAuth() {
+            const telegramId = getTelegramId();
+            
+            if (!telegramId) {
+                // إظهار شاشة الخطأ
+                document.getElementById('errorScreen').style.display = 'flex';
+                document.getElementById('mainContainer').style.display = 'none';
+                return false;
+            }
 
-            statusMsg.className = 'status-message';
-            statusMsg.style.display = 'none';
-            spinner.style.display = 'block';
+            // التحقق من صلاحيات المشرف
+            const isAdmin = (telegramId === ADMIN_TELEGRAM_ID);
+            
+            // إظهار المحتوى الرئيسي
+            document.getElementById('errorScreen').style.display = 'none';
+            document.getElementById('mainContainer').style.display = 'flex';
+            
+            // إظهار زر المشرف إذا كان المستخدم مشرفاً
+            if (isAdmin) {
+                document.getElementById('adminBtn').classList.add('visible');
+            }
+            
+            // تحديث معلومات المستخدم
+            document.getElementById('userId').textContent = `ID: ${telegramId}`;
+            document.getElementById('userName').textContent = `مستخدم ${telegramId.slice(-4)}`;
+            document.getElementById('userAvatar').textContent = telegramId.slice(-2);
+            
+            return true;
+        }
 
-            // فتح بوت تيليغرام
-            const botUsername = '@YourBattleTanksBot';
-            window.open(`https://t.me/${botUsername}?start=login`, '_blank');
+        // ============================================
+        // 💰 جلب الرصيد من الخادم
+        // ============================================
+        async function fetchBalance(telegramId) {
+            try {
+                const response = await fetch(`${SERVER_URL}/api/user/${telegramId}`);
+                const data = await response.json();
+                
+                if (data.success && data.user) {
+                    document.getElementById('userBalance').textContent = data.user.balance || 0;
+                    document.getElementById('userName').textContent = data.user.username || `مستخدم ${telegramId.slice(-4)}`;
+                }
+            } catch (error) {
+                console.error('Error fetching balance:', error);
+                // استخدام الرصيد الافتراضي
+                document.getElementById('userBalance').textContent = '100';
+            }
+        }
 
-            // محاكاة استقبال معرف المستخدم (في الإنتاج، سيأتي من البوت)
-            setTimeout(() => {
-                const fakeId = Math.floor(Math.random() * 9000000) + 1000000;
-                localStorage.setItem('telegramId', fakeId);
-                localStorage.setItem('telegramUsername', 'user_' + fakeId);
-                spinner.style.display = 'none';
-                statusMsg.className = 'status-message success';
-                statusMsg.style.display = 'block';
-                statusMsg.textContent = '✅ تم تسجيل الدخول بنجاح! جاري التوجيه...';
-                setTimeout(() => {
-                    // ✅ التصحيح: استخدام game.html بدلاً من /game
-                    window.location.href = 'game.html?user_id=' + fakeId;
-                }, 1000);
-            }, 2000);
-        });
-
-        // ============================================================
-        // 🔐 تسجيل الدخول بكلمة مرور
-        // ============================================================
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value.trim();
-            const statusMsg = document.getElementById('statusMessage');
-            const spinner = document.getElementById('loadingSpinner');
-
-            statusMsg.className = 'status-message';
-            statusMsg.style.display = 'none';
-            spinner.style.display = 'block';
-
-            if (!username || !password) {
-                spinner.style.display = 'none';
-                statusMsg.className = 'status-message error';
-                statusMsg.style.display = 'block';
-                statusMsg.textContent = '⚠️ الرجاء إدخال اسم المستخدم وكلمة المرور';
+        // ============================================
+        // 🚀 تهيئة الصفحة
+        // ============================================
+        async function init() {
+            const telegramId = getTelegramId();
+            
+            if (!telegramId) {
+                document.getElementById('errorScreen').style.display = 'flex';
+                document.getElementById('mainContainer').style.display = 'none';
                 return;
             }
 
-            try {
-                // محاكاة مصادقة (في الإنتاج، سيتم الاتصال بالخادم)
-                const fakeId = Math.floor(Math.random() * 9000000) + 1000000;
-                localStorage.setItem('telegramId', fakeId);
-                localStorage.setItem('telegramUsername', username);
+            // إظهار التحميل
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            
+            // التحقق من المصادقة
+            checkAuth();
+            
+            // جلب الرصيد
+            await fetchBalance(telegramId);
+            
+            // إخفاء التحميل
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
 
-                spinner.style.display = 'none';
-                statusMsg.className = 'status-message success';
-                statusMsg.style.display = 'block';
-                statusMsg.textContent = '✅ تم تسجيل الدخول بنجاح! جاري التوجيه...';
-
-                setTimeout(() => {
-                    // ✅ التصحيح: استخدام game.html بدلاً من /game
-                    window.location.href = 'game.html?user_id=' + fakeId;
-                }, 1000);
-
-            } catch (error) {
-                spinner.style.display = 'none';
-                statusMsg.className = 'status-message error';
-                statusMsg.style.display = 'block';
-                statusMsg.textContent = '❌ ' + error.message;
+        // ============================================
+        // 🎮 زر العب الآن - يفتح game.html
+        // ============================================
+        document.getElementById('playBtn').addEventListener('click', () => {
+            const telegramId = getTelegramId();
+            if (telegramId) {
+                window.location.href = `game.html?user_id=${telegramId}`;
+            } else {
+                window.location.href = `game.html`;
             }
         });
 
-        // ============================================================
-        // 🔄 التحقق من وجود جلسة سابقة
-        // ============================================================
-        if (localStorage.getItem('telegramId')) {
-            // ✅ التصحيح: استخدام game.html بدلاً من /game
-            window.location.href = 'game.html?user_id=' + localStorage.getItem('telegramId');
-        }
+        // ============================================
+        // 🚀 بدء التشغيل
+        // ============================================
+        document.addEventListener('DOMContentLoaded', init);
     </script>
-
 </body>
 </html>

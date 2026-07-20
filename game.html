@@ -1,2877 +1,1217 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Battle Tanks Elite - معركة الدبابات</title>
-    
-    <!-- ============================================================
-    📚 المكتبات
-    ============================================================ -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js">
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js">
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js">
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js">
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js">
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js">
-    </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js">
-    </script>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Battle Tanks - اختيار الغرفة</title>
     <style>
-        /* ============================================================
-        🎨 الأنماط الأساسية
-        ============================================================ */
+        /* ============================================
+           🎨 الأنماط العامة
+           ============================================ */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Segoe UI', 'Cairo', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
             background: #0a0f1a;
+            color: white;
+            overflow-x: hidden;
+        }
+
+        /* 🌌 الخلفية المتحركة */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            background: linear-gradient(135deg, #0a0f1a 0%, #1a1a2e 30%, #16213e 60%, #0a0f1a 100%);
             overflow: hidden;
-            position: fixed;
-            width: 100%;
-            height: 100%;
-            top: 0;
-            left: 0;
         }
 
-        canvas {
-            display: block;
-            width: 100% !important;
-            height: 100% !important;
+        .bg-animation::before {
+            content: '';
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            top: -50%;
+            left: -50%;
+            background: 
+                radial-gradient(ellipse at 20% 50%, rgba(212, 175, 55, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 50%, rgba(212, 175, 55, 0.05) 0%, transparent 50%);
+            animation: bgMove 30s ease-in-out infinite;
         }
 
-        /* ============================================================
-        📱 تحذير الوضع الأفقي
-        ============================================================ */
-        .landscape-warning {
+        @keyframes bgMove {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(5%, -5%) rotate(1deg); }
+            66% { transform: translate(-5%, 5%) rotate(-1deg); }
+        }
+
+        /* ✨ النجوم */
+        .stars {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.95);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .star {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            animation: twinkle var(--duration) ease-in-out infinite alternate;
+        }
+
+        @keyframes twinkle {
+            0% { opacity: 0.2; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1.2); }
+        }
+
+        /* ============================================
+           📊 الشريط العلوي
+           ============================================ */
+        .header {
+            position: relative;
+            z-index: 1;
+            background: rgba(10, 15, 30, 0.85);
             backdrop-filter: blur(20px);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 20px;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            margin: 20px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .back-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 50px;
+            padding: 8px 20px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .back-btn:hover {
+            background: rgba(255,255,255,0.2);
+            transform: scale(1.05);
+        }
+
+        .logo {
+            font-size: 22px;
+            font-weight: bold;
+            color: #d4af37;
+        }
+
+        .logo span {
+            color: #fff;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 50px;
+            padding: 6px 16px 6px 6px;
+        }
+
+        .user-avatar {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #d4af37, #b8860b);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px;
+            font-weight: bold;
+            color: #000;
+        }
+
+        .user-name {
+            font-size: 14px;
+            color: #fff;
+        }
+
+        .balance-display {
+            background: rgba(212, 175, 55, 0.15);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 50px;
+            padding: 6px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .balance-display .label {
+            color: #aaa;
+            font-size: 12px;
+        }
+
+        .balance-display .value {
+            color: #d4af37;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        /* ============================================
+           🏠 المحتوى الرئيسي
+           ============================================ */
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px 40px;
+        }
+
+        .page-title {
+            text-align: center;
+            color: #d4af37;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .page-subtitle {
+            text-align: center;
+            color: #888;
+            font-size: 16px;
+            margin-bottom: 30px;
+        }
+
+        /* ============================================
+           🏠 بطاقات الغرف
+           ============================================ */
+        .rooms-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .room-card {
+            background: rgba(10, 15, 30, 0.85);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(212, 175, 55, 0.2);
+            border-radius: 24px;
+            padding: 25px;
+            transition: all 0.3s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .room-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(212, 175, 55, 0.05) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        .room-card:hover::before {
+            opacity: 1;
+        }
+
+        .room-card:hover {
+            border-color: #d4af37;
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(212, 175, 55, 0.15);
+        }
+
+        .room-card .room-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        .room-card .room-name {
+            font-size: 20px;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 5px;
+        }
+
+        .room-card .room-details {
+            color: #aaa;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .room-card .room-details span {
+            color: #d4af37;
+        }
+
+        .room-card .room-status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .room-card .status-badge {
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-badge.waiting {
+            background: rgba(46, 204, 113, 0.2);
+            color: #2ecc71;
+            border: 1px solid rgba(46, 204, 113, 0.3);
+        }
+
+        .status-badge.full {
+            background: rgba(231, 76, 60, 0.2);
+            color: #e74c3c;
+            border: 1px solid rgba(231, 76, 60, 0.3);
+        }
+
+        .status-badge.active {
+            background: rgba(241, 196, 15, 0.2);
+            color: #f1c40f;
+            border: 1px solid rgba(241, 196, 15, 0.3);
+        }
+
+        .room-card .players-count {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .room-card .players-count span {
+            color: #d4af37;
+            font-weight: bold;
+        }
+
+        /* ============================================
+           🪑 المقاعد (تظهر عند اختيار غرفة)
+           ============================================ */
+        .seats-section {
+            display: none;
+            background: rgba(10, 15, 30, 0.9);
+            backdrop-filter: blur(20px);
+            border: 2px solid rgba(212, 175, 55, 0.3);
+            border-radius: 30px;
+            padding: 30px;
+            margin-top: 20px;
+            animation: slideUp 0.5s ease-out;
+        }
+
+        .seats-section.visible {
+            display: block;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .seats-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .seats-header h3 {
+            color: #d4af37;
+            font-size: 24px;
+        }
+
+        .seats-header .close-seats {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 50px;
+            padding: 8px 20px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .seats-header .close-seats:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .seats-info {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+        }
+
+        .seats-info .info-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        .seats-info .info-item span {
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .seats-info .info-item .highlight {
+            color: #d4af37;
+        }
+
+        /* 🪑 شبكة المقاعد */
+        .seats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .seat {
+            aspect-ratio: 1;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 12px;
+            font-weight: bold;
+            border: 3px solid rgba(255,255,255,0.15);
+            background: rgba(255,255,255,0.05);
+            color: #888;
+            position: relative;
+            min-height: 70px;
+        }
+
+        .seat .seat-number {
+            font-size: 16px;
+            color: #fff;
+        }
+
+        .seat .seat-status {
+            font-size: 10px;
+            margin-top: 4px;
+        }
+
+        /* مقعد فارغ */
+        .seat.empty {
+            border-color: rgba(46, 204, 113, 0.4);
+            background: rgba(46, 204, 113, 0.1);
+            color: #2ecc71;
+        }
+
+        .seat.empty:hover {
+            transform: scale(1.08);
+            border-color: #2ecc71;
+            background: rgba(46, 204, 113, 0.2);
+            box-shadow: 0 0 30px rgba(46, 204, 113, 0.2);
+        }
+
+        .seat.empty .seat-status {
+            color: #2ecc71;
+        }
+
+        /* مقعد محجوز */
+        .seat.occupied {
+            border-color: rgba(231, 76, 60, 0.4);
+            background: rgba(231, 76, 60, 0.15);
+            color: #e74c3c;
+            cursor: not-allowed;
+        }
+
+        .seat.occupied .seat-status {
+            color: #e74c3c;
+        }
+
+        .seat.occupied .player-name {
+            font-size: 10px;
+            color: #aaa;
+            margin-top: 2px;
+        }
+
+        /* مقعد اللاعب الحالي */
+        .seat.mine {
+            border-color: #d4af37;
+            background: rgba(212, 175, 55, 0.2);
+            color: #d4af37;
+            box-shadow: 0 0 30px rgba(212, 175, 55, 0.2);
+        }
+
+        .seat.mine .seat-status {
+            color: #d4af37;
+        }
+
+        /* 🔘 أزرار المقاعد */
+        .seats-actions {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+            justify-content: center;
+        }
+
+        .seats-actions .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 50px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 16px;
+        }
+
+        .seats-actions .btn:hover {
+            transform: scale(1.05);
+        }
+
+        .btn-leave {
+            background: rgba(231, 76, 60, 0.2);
+            color: #e74c3c;
+            border: 1px solid rgba(231, 76, 60, 0.3);
+        }
+
+        .btn-leave:hover {
+            background: rgba(231, 76, 60, 0.3);
+        }
+
+        .btn-refresh {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .btn-refresh:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        /* ============================================
+           🚫 شاشة الخطأ
+           ============================================ */
+        .error-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 9999;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 30px;
+            backdrop-filter: blur(10px);
+        }
+
+        .error-screen .icon {
+            font-size: 80px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .error-screen h1 {
+            color: #ff4444;
+            font-size: 32px;
+            text-align: center;
+        }
+
+        .error-screen p {
+            color: #aaa;
+            font-size: 18px;
+            text-align: center;
+            max-width: 400px;
+            line-height: 1.8;
+        }
+
+        .error-screen .btn-telegram {
+            padding: 16px 40px;
+            background: #0088cc;
+            border: none;
+            border-radius: 50px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+            text-decoration: none;
+        }
+
+        .error-screen .btn-telegram:hover {
+            transform: scale(1.05);
+        }
+
+        /* ============================================
+           ⏳ تحميل
+           ============================================ */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
             display: none;
             justify-content: center;
             align-items: center;
             z-index: 10000;
-            text-align: center;
-            flex-direction: column;
-            gap: 20px;
-            color: #d4af37;
         }
 
-        .landscape-warning .icon {
-            font-size: 80px;
-            animation: rotateWarning 1.5s ease-in-out infinite;
-        }
-
-        @keyframes rotateWarning {
-            0%,
-            100% {
-                transform: rotate(0deg);
-            }
-            50% {
-                transform: rotate(90deg);
-            }
-        }
-
-        /* ============================================================
-        🎮 HUD
-        ============================================================ */
-        #hud {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 100;
-            display: none;
-        }
-
-        /* شريط الحالة */
-        .status-bar {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(10px);
-            padding: 12px 20px;
-            border-left: 4px solid #d4af37;
-            border-radius: 16px;
-            color: #e8e8e8;
-            font-size: 14px;
-            min-width: 140px;
-            pointer-events: none;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-        }
-
-        .status-bar .row {
-            display: flex;
-            justify-content: space-between;
-            gap: 20px;
-            padding: 2px 0;
-        }
-
-        .status-bar .label {
-            color: #8a9aa8;
-            font-size: 12px;
-        }
-
-        .status-bar .value {
-            font-weight: 700;
-            color: #d4af37;
-        }
-
-        .status-bar .value.health {
-            color: #2ecc71;
-        }
-
-        .status-bar .value.health.low {
-            color: #e74c3c;
-            animation: pulseHealth 0.5s ease-in-out infinite;
-        }
-
-        @keyframes pulseHealth {
-            0%,
-            100% {
-                opacity: 1;
-            }
-            50% {
-                opacity: 0.4;
-            }
-        }
-
-        /* معلومات الفريق */
-        .team-info {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(10px);
-            padding: 12px 20px;
-            border-radius: 16px;
-            color: #e8e8e8;
-            font-size: 14px;
-            text-align: right;
-            pointer-events: none;
-            min-width: 120px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-        }
-
-        .team-info .team {
-            padding: 2px 0;
-        }
-
-        .team-info .team.team1 {
-            color: #4caf50;
-        }
-
-        .team-info .team.team2 {
-            color: #e74c3c;
-        }
-
-        /* التصويب */
-        .crosshair {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 40px;
-            height: 40px;
-            pointer-events: none;
-            opacity: 0.8;
-        }
-
-        .crosshair::before,
-        .crosshair::after {
-            content: '';
-            position: absolute;
-            background: rgba(255, 255, 240, 0.9);
-        }
-
-        .crosshair::before {
-            top: 50%;
-            left: 0;
-            width: 100%;
-            height: 2px;
-            transform: translateY(-50%);
-        }
-
-        .crosshair::after {
-            top: 0;
-            left: 50%;
-            width: 2px;
-            height: 100%;
-            transform: translateX(-50%);
-        }
-
-        .crosshair .dot {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 4px;
-            height: 4px;
-            background: #ff4444;
+        .loading-overlay .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(212, 175, 55, 0.1);
+            border-top: 4px solid #d4af37;
             border-radius: 50%;
+            animation: spin 1s linear infinite;
         }
 
-        .crosshair .ring {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 30px;
-            height: 30px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
-        /* عناصر التحكم */
-        .controls {
-            position: absolute;
-            bottom: 30px;
-            width: 100%;
-            display: flex;
-            justify-content: space-between;
-            padding: 0 20px;
-            pointer-events: none;
-        }
-
-        .joystick-base {
-            width: 130px;
-            height: 130px;
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(5px);
-            border: 2px solid rgba(212, 175, 55, 0.4);
-            border-radius: 50%;
-            position: relative;
-            pointer-events: auto;
-            touch-action: none;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 30px rgba(212, 175, 55, 0.05);
-            transition: border-color 0.3s ease;
-        }
-
-        .joystick-base:active {
-            border-color: #d4af37;
-        }
-
-        .joystick-handle {
-            width: 56px;
-            height: 56px;
-            background: radial-gradient(circle at 40% 35%, #f0d060, #b8860b);
-            border-radius: 50%;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            box-shadow: 0 4px 20px rgba(212, 175, 55, 0.3), inset 0 -4px 10px rgba(0, 0, 0, 0.3);
-            transition: box-shadow 0.3s ease;
-        }
-
-        .joystick-base:active .joystick-handle {
-            box-shadow: 0 4px 40px rgba(212, 175, 55, 0.5), inset 0 -4px 10px rgba(0, 0, 0, 0.3);
-        }
-
-        .fire-btn {
-            width: 85px;
-            height: 85px;
-            background: radial-gradient(circle at 40% 35%, #ff6644, #cc2222);
-            border: 3px solid rgba(212, 175, 55, 0.6);
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 40px;
-            color: white;
-            cursor: pointer;
-            pointer-events: auto;
-            box-shadow: 0 8px 32px rgba(255, 0, 0, 0.4), inset 0 -6px 20px rgba(0, 0, 0, 0.3);
-            touch-action: none;
-            transition: all 0.1s ease;
-            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-        }
-
-        .fire-btn:active {
-            transform: scale(0.92);
-            box-shadow: 0 4px 20px rgba(255, 0, 0, 0.6), inset 0 0 30px rgba(255, 200, 100, 0.3);
-        }
-
-        .fire-btn .cooldown-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            background: rgba(0, 0, 0, 0.6);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            font-size: 18px;
-            font-weight: 700;
-            color: #d4af37;
-        }
-
-        .fire-btn .cooldown-overlay.show {
-            display: flex;
-        }
-
-        /* زر ملء الشاشة */
-        .fullscreen-btn {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(212, 175, 55, 0.3);
-            border-radius: 30px;
-            padding: 8px 20px;
-            color: #8a9aa8;
-            cursor: pointer;
-            font-size: 12px;
-            pointer-events: auto;
-            transition: all 0.3s ease;
-            font-family: 'Segoe UI', sans-serif;
-        }
-
-        .fullscreen-btn:hover {
-            border-color: #d4af37;
-            color: #d4af37;
-        }
-
-        /* ============================================================
-        📊 شاشة التقرير
-        ============================================================ */
-        #reportScreen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.92);
-            backdrop-filter: blur(20px);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 2000;
-            animation: fadeIn 0.5s ease;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: scale(0.95);
-            }
-            to {
-                opacity: 1;
-                transform: scale(1);
-            }
-        }
-
-        .report-container {
-            background: linear-gradient(145deg, #1a1a2e, #0a0a1a);
-            padding: 40px;
-            border-radius: 40px;
-            text-align: center;
-            border: 2px solid rgba(212, 175, 55, 0.3);
-            max-width: 450px;
-            width: 92%;
-            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8);
-        }
-
-        .report-container .icon {
-            font-size: 72px;
-            margin-bottom: 10px;
-        }
-
-        .report-container h2 {
-            color: #d4af37;
-            font-size: 28px;
-            margin-bottom: 10px;
-        }
-
-        .report-container .subtitle {
-            color: #8a9aa8;
-            margin-bottom: 20px;
-            font-size: 16px;
-        }
-
-        .report-container .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin: 20px 0;
-        }
-
-        .report-container .stat-item {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 12px;
-            border-radius: 16px;
-        }
-
-        .report-container .stat-item .label {
-            font-size: 12px;
-            color: #8a9aa8;
-        }
-
-        .report-container .stat-item .value {
-            font-size: 22px;
-            font-weight: 700;
-            color: #d4af37;
-        }
-
-        .report-container .stat-item .value.gold {
-            color: #d4af37;
-        }
-        .report-container .stat-item .value.green {
-            color: #2ecc71;
-        }
-        .report-container .stat-item .value.red {
-            color: #e74c3c;
-        }
-
-        .report-btn {
-            margin-top: 20px;
-            padding: 14px 40px;
-            background: linear-gradient(135deg, #d4af37, #b8860b);
-            border: none;
-            border-radius: 30px;
-            font-size: 18px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-family: 'Segoe UI', sans-serif;
-            color: #0a0f1a;
-        }
-
-        .report-btn:hover {
-            transform: scale(1.05);
-            box-shadow: 0 8px 30px rgba(212, 175, 55, 0.3);
-        }
-
-        .report-btn:active {
-            transform: scale(0.97);
-        }
-
-        /* ============================================================
-        💀 رسالة الإقصاء
-        ============================================================ */
-        .elimination-message {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.92);
-            backdrop-filter: blur(10px);
-            color: #ff4444;
-            padding: 24px 48px;
-            border-radius: 30px;
-            font-size: 28px;
-            font-weight: 900;
-            z-index: 3000;
-            border: 2px solid #ff4444;
-            box-shadow: 0 30px 80px rgba(255, 0, 0, 0.2);
-            text-align: center;
-            animation: eliminateAnim 3s ease-in-out forwards;
-            pointer-events: none;
-        }
-
-        .elimination-message .sub {
-            font-size: 16px;
-            font-weight: 400;
-            color: #8a9aa8;
-            margin-top: 8px;
-        }
-
-        @keyframes eliminateAnim {
-            0% {
-                opacity: 0;
-                transform: translate(-50%, -50%) scale(0.7);
-            }
-            15% {
-                opacity: 1;
-                transform: translate(-50%, -50%) scale(1.05);
-            }
-            30% {
-                transform: translate(-50%, -50%) scale(1);
-            }
-            85% {
-                opacity: 1;
-            }
-            100% {
-                opacity: 0;
-                transform: translate(-50%, -50%) scale(1.1);
-            }
-        }
-
-        /* ============================================================
-        📱 التجاوب
-        ============================================================ */
+        /* ============================================
+           📱 استجابة
+           ============================================ */
         @media (max-width: 768px) {
-            .status-bar {
-                top: 12px;
-                left: 12px;
-                padding: 8px 14px;
-                font-size: 12px;
-                min-width: 100px;
+            .header {
+                padding: 12px 16px;
+                margin: 10px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
             }
 
-            .team-info {
-                top: 12px;
-                right: 12px;
-                padding: 8px 14px;
-                font-size: 12px;
-                min-width: 80px;
+            .header-left {
+                justify-content: center;
             }
 
-            .joystick-base {
-                width: 100px;
-                height: 100px;
+            .header-right {
+                justify-content: center;
+                flex-wrap: wrap;
             }
 
-            .joystick-handle {
-                width: 44px;
-                height: 44px;
+            .logo {
+                font-size: 18px;
             }
 
-            .fire-btn {
-                width: 65px;
-                height: 65px;
-                font-size: 30px;
+            .rooms-grid {
+                grid-template-columns: 1fr;
             }
 
-            .report-container {
-                padding: 24px 20px;
+            .seats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+                gap: 10px;
             }
 
-            .report-container .icon {
-                font-size: 48px;
+            .seat {
+                min-height: 60px;
             }
 
-            .report-container h2 {
-                font-size: 22px;
+            .page-title {
+                font-size: 24px;
             }
 
-            .elimination-message {
+            .seats-section {
+                padding: 20px;
+            }
+
+            .seats-header h3 {
                 font-size: 20px;
-                padding: 16px 24px;
             }
         }
 
         @media (max-width: 480px) {
-            .status-bar {
-                top: 8px;
-                left: 8px;
-                padding: 6px 10px;
-                font-size: 10px;
-                min-width: 80px;
-                border-left-width: 2px;
+            .seats-grid {
+                grid-template-columns: repeat(3, 1fr);
             }
 
-            .team-info {
-                top: 8px;
-                right: 8px;
-                padding: 6px 10px;
-                font-size: 10px;
-                min-width: 60px;
+            .seat .seat-number {
+                font-size: 14px;
             }
 
-            .joystick-base {
-                width: 80px;
-                height: 80px;
-            }
-
-            .joystick-handle {
-                width: 36px;
-                height: 36px;
-            }
-
-            .fire-btn {
-                width: 55px;
-                height: 55px;
-                font-size: 24px;
-            }
-
-            .controls {
-                bottom: 16px;
-                padding: 0 12px;
-            }
-
-            .crosshair {
-                width: 28px;
-                height: 28px;
-            }
-
-            .fullscreen-btn {
-                display: none;
+            .seats-actions .btn {
+                padding: 10px 20px;
+                font-size: 14px;
             }
         }
 
-        /* ============================================================
-        🌀 تحميل
-        ============================================================ */
-        #loading {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(ellipse at center, #0a0f1a, #05070c);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            z-index: 9999;
-            gap: 30px;
+        /* ============================================
+           🎯 رسائل الحالة
+           ============================================ */
+        .status-message {
+            padding: 15px 20px;
+            border-radius: 16px;
+            margin: 10px 0;
+            text-align: center;
+            font-weight: bold;
+            display: none;
         }
 
-        #loading .spinner {
-            width: 60px;
-            height: 60px;
-            border: 4px solid rgba(212, 175, 55, 0.15);
-            border-top: 4px solid #d4af37;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+        .status-message.success {
+            display: block;
+            background: rgba(46, 204, 113, 0.15);
+            border: 1px solid rgba(46, 204, 113, 0.3);
+            color: #2ecc71;
         }
 
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-            100% {
-                transform: rotate(360deg);
-            }
+        .status-message.error {
+            display: block;
+            background: rgba(231, 76, 60, 0.15);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            color: #e74c3c;
         }
 
-        #loading .text {
-            color: #8a9aa8;
-            font-size: 16px;
-            letter-spacing: 2px;
-        }
-
-        #loading .progress {
-            width: 200px;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        #loading .progress .bar {
-            height: 100%;
-            width: 0%;
-            background: linear-gradient(90deg, #b8860b, #d4af37);
-            border-radius: 4px;
-            transition: width 0.3s ease;
+        .status-message.info {
+            display: block;
+            background: rgba(241, 196, 15, 0.15);
+            border: 1px solid rgba(241, 196, 15, 0.3);
+            color: #f1c40f;
         }
     </style>
 </head>
 <body>
 
-    <!-- ============================================================
-    🌀 شاشة التحميل
-    ============================================================ -->
-    <div id="loading">
+    <!-- 🌌 الخلفية -->
+    <div class="bg-animation"></div>
+    <div class="stars" id="stars"></div>
+
+    <!-- 🚫 شاشة الخطأ -->
+    <div class="error-screen" id="errorScreen" style="display:none;">
+        <div class="icon">🔒</div>
+        <h1>⚠️ خطأ في المصادقة</h1>
+        <p>يرجى تسجيل الدخول عبر بوت تيليغرام للحصول على معرف المستخدم.</p>
+        <a href="https://t.me/BattleTanksBot" target="_blank" class="btn-telegram">📱 فتح بوت تيليغرام</a>
+    </div>
+
+    <!-- ⏳ التحميل -->
+    <div class="loading-overlay" id="loadingOverlay">
         <div class="spinner"></div>
-        <div class="text">⚔️ جاري تجهيز ساحة المعركة...</div>
-        <div class="progress">
-            <div class="bar" id="loadProgress"></div>
-        </div>
     </div>
 
-    <!-- ============================================================
-    📱 تحذير الوضع الأفقي
-    ============================================================ -->
-    <div class="landscape-warning" id="landscapeWarning">
-        <div class="icon">🔄</div>
-        <h2>يرجى تدوير الجهاز</h2>
-        <p style="color:#8a9aa8;">المعركة تعمل في الوضع الأفقي فقط</p>
+    <!-- ============================================
+    📱 المحتوى الرئيسي
+    ============================================ -->
+    <div class="container" id="mainContainer" style="display:none;">
+
+        <!-- 📊 الشريط العلوي -->
+        <header class="header">
+            <div class="header-left">
+                <button class="back-btn" onclick="window.location.href='index.html'">🏠 العودة</button>
+                <div class="logo">⚔️ Battle <span>Tanks</span></div>
+            </div>
+            <div class="header-right">
+                <div class="user-info">
+                    <div class="user-avatar" id="userAvatar">👤</div>
+                    <span class="user-name" id="userName">اللاعب</span>
+                </div>
+                <div class="balance-display">
+                    <span class="label">💰</span>
+                    <span class="value" id="userBalance">0</span>
+                    <span style="color:#888;font-size:12px;">$</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 🏠 العنوان -->
+        <h1 class="page-title">🏠 اختيار ساحة المعركة</h1>
+        <p class="page-subtitle">اختر نوع المعركة التي تريد خوضها</p>
+
+        <!-- 🏠 بطاقات الغرف -->
+        <div class="rooms-grid" id="roomsGrid">
+            <!-- سيتم إنشاؤها بواسطة JavaScript -->
+        </div>
+
+        <!-- رسالة الحالة -->
+        <div class="status-message" id="statusMessage"></div>
+
+        <!-- 🪑 المقاعد -->
+        <div class="seats-section" id="seatsSection">
+            <div class="seats-header">
+                <h3 id="selectedRoomTitle">🪑 مقاعد الغرفة</h3>
+                <button class="close-seats" onclick="closeSeats()">✕ إغلاق</button>
+            </div>
+
+            <div class="seats-info">
+                <div class="info-item">👥 اللاعبين: <span id="seatsPlayersCount">0</span>/<span id="seatsMaxPlayers">0</span></div>
+                <div class="info-item">💰 سعر المقعد: <span class="highlight" id="seatsPrice">0</span> $</div>
+                <div class="info-item">⏳ يحتاج: <span id="seatsNeeded">0</span> لاعب</div>
+            </div>
+
+            <div class="seats-grid" id="seatsGrid">
+                <!-- سيتم إنشاؤها بواسطة JavaScript -->
+            </div>
+
+            <div class="seats-actions">
+                <button class="btn btn-leave" id="leaveRoomBtn" onclick="leaveRoom()">🚪 مغادرة الغرفة</button>
+                <button class="btn btn-refresh" onclick="refreshSeats()">🔄 تحديث</button>
+            </div>
+        </div>
+
     </div>
 
-    <!-- ============================================================
-    🎮 HUD
-    ============================================================ -->
-    <div id="hud">
-        <!-- شريط الحالة -->
-        <div class="status-bar">
-            <div class="row">
-                <span class="label">🎮</span>
-                <span class="value" id="gameUsername">اللاعب</span>
-            </div>
-            <div class="row">
-                <span class="label">💰</span>
-                <span class="value" id="gameBalance">0$</span>
-            </div>
-            <div class="row">
-                <span class="label">❤️</span>
-                <span class="value health" id="healthDisplay">100%</span>
-            </div>
-            <div class="row" style="font-size:11px; color:#666; border-top:1px solid rgba(255,255,255,0.05); padding-top:4px; margin-top:4px;">
-                <span>⚔️ <span id="killsDisplay">0</span></span>
-                <span>💀 <span id="deathsDisplay">0</span></span>
-            </div>
-        </div>
-
-        <!-- معلومات الفريق -->
-        <div class="team-info">
-            <div class="team team1">🟢 فريقي: <span id="myTeamCount">0</span></div>
-            <div class="team team2">🔴 الخصم: <span id="enemyTeamCount">0</span></div>
-            <div style="font-size:11px; color:#666; border-top:1px solid rgba(255,255,255,0.05); padding-top:4px; margin-top:4px;">
-                🏆 <span id="teamScore">0 - 0</span>
-            </div>
-        </div>
-
-        <!-- التصويب -->
-        <div class="crosshair">
-            <div class="dot"></div>
-            <div class="ring"></div>
-        </div>
-
-        <!-- عناصر التحكم -->
-        <div class="controls">
-            <div class="joystick-base" id="joystickBase">
-                <div class="joystick-handle" id="joystickHandle"></div>
-            </div>
-            <div class="fire-btn" id="fireBtn">
-                💥
-                <div class="cooldown-overlay" id="cooldownOverlay">3</div>
-            </div>
-        </div>
-
-        <!-- زر ملء الشاشة -->
-        <button class="fullscreen-btn" id="fullscreenBtn">🗔 ملء الشاشة</button>
-    </div>
-
-    <!-- ============================================================
-    📊 شاشة التقرير
-    ============================================================ -->
-    <div id="reportScreen">
-        <div class="report-container">
-            <div class="icon" id="reportIcon">🏆</div>
-            <h2 id="reportTitle">انتهت المعركة!</h2>
-            <div class="subtitle" id="reportSubtitle">نتائج المعركة</div>
-
-            <div class="stats-grid">
-                <div class="stat-item">
-                    <div class="label">🎯 الفريق</div>
-                    <div class="value gold" id="reportTeam">-</div>
-                </div>
-                <div class="stat-item">
-                    <div class="label">💰 المكافأة</div>
-                    <div class="value green" id="reportReward">0$</div>
-                </div>
-                <div class="stat-item">
-                    <div class="label">⚔️ قتل</div>
-                    <div class="value" id="reportKills" style="color:#d4af37;">0</div>
-                </div>
-                <div class="stat-item">
-                    <div class="label">💀 موت</div>
-                    <div class="value red" id="reportDeaths">0</div>
-                </div>
-            </div>
-
-            <button class="report-btn" id="reportBtn">🔄 معركة جديدة</button>
-        </div>
-    </div>
-
-    <!-- ============================================================
-    📜 JavaScript - محرك اللعبة الكامل
-    ============================================================ -->
+    <!-- ============================================
+    📜 JavaScript
+    ============================================ -->
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
     <script>
-        // ============================================================
-        // 🔐 استخلاص معلومات المستخدم
-        // ============================================================
-        const urlParams = new URLSearchParams(window.location.search);
-        const TELEGRAM_ID = urlParams.get('user_id') || localStorage.getItem('telegramId');
-        const USERNAME = localStorage.getItem('telegramUsername') || 'لاعب';
+        // ============================================
+        // 🎯 إعدادات
+        // ============================================
+        const ADMIN_TELEGRAM_ID = '7011476249';
+        const SERVER_URL = window.location.origin;
+        let socket = null;
+        let currentUser = null;
+        let currentRoomId = null;
+        let isInRoom = false;
+        let selectedRoomId = null;
 
-        if (!TELEGRAM_ID) {
-            window.location.href = '/';
+        // ============================================
+        // ⭐ إنشاء النجوم
+        // ============================================
+        function createStars() {
+            const container = document.getElementById('stars');
+            for (let i = 0; i < 120; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                const size = Math.random() * 2.5 + 1;
+                star.style.width = size + 'px';
+                star.style.height = size + 'px';
+                star.style.left = Math.random() * 100 + '%';
+                star.style.top = Math.random() * 100 + '%';
+                star.style.setProperty('--duration', (Math.random() * 3 + 2) + 's');
+                star.style.animationDelay = (Math.random() * 5) + 's';
+                container.appendChild(star);
+            }
+        }
+        createStars();
+
+        // ============================================
+        // 📱 استخلاص معرف المستخدم
+        // ============================================
+        function getTelegramId() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('user_id') || params.get('telegram_id') || null;
         }
 
-        // ============================================================
-        // 📡 اتصال Socket.io
-        // ============================================================
-        const socket = io({
-            transports: ['websocket', 'polling'],
-            reconnection: true,
-            reconnectionAttempts: 10,
-            reconnectionDelay: 1000,
-        });
-
-        // ============================================================
-        // 🎮 حالة اللعبة
-        // ============================================================
-        const gameState = {
-            userId: TELEGRAM_ID,
-            username: USERNAME,
-            team: 1,
-            balance: 0,
-            health: 100,
-            maxHealth: 100,
-            kills: 0,
-            deaths: 0,
-            isAlive: true,
-            isEliminated: false,
-            gameActive: false,
-            lastShot: 0,
-            cooldown: 3000,
-            position: { x: 0, z: 0 },
-            rotation: 0,
-            token: localStorage.getItem('gameToken') || null,
-        };
-
-        // ============================================================
-        // 🔐 المصادقة
-        // ============================================================
-        socket.on('connect', () => {
-            console.log('🔌 Connected to server');
-            if (gameState.token) {
-                socket.emit('auth', { telegramId: TELEGRAM_ID, token: gameState.token });
-            } else {
-                socket.emit('auth', { telegramId: TELEGRAM_ID, username: USERNAME });
+        // ============================================
+        // 🔌 اتصال Socket.io
+        // ============================================
+        function connectSocket(telegramId) {
+            if (socket) {
+                socket.disconnect();
             }
-        });
 
-        socket.on('auth_success', (data) => {
-            console.log('✅ Auth success:', data);
-            gameState.balance = data.balance || 0;
-            gameState.isAdmin = data.isAdmin || false;
-            gameState.token = data.token;
-
-            localStorage.setItem('gameToken', data.token);
-            localStorage.setItem('telegramId', data.telegramId);
-
-            document.getElementById('gameUsername').textContent = data.username || USERNAME;
-            document.getElementById('gameBalance').textContent = data.balance + '$';
-            document.getElementById('healthDisplay').textContent = '100%';
-
-            // الانضمام إلى اللوبي
-            socket.emit('join_lobby');
-        });
-
-        socket.on('auth_error', (data) => {
-            console.error('❌ Auth error:', data);
-            alert('خطأ في المصادقة: ' + data.message);
-        });
-
-        // ============================================================
-        // 🏠 اللوبي
-        // ============================================================
-        socket.on('lobby_joined', (data) => {
-            console.log('🏠 Lobby joined:', data);
-            gameState.balance = data.balance || 0;
-            document.getElementById('gameBalance').textContent = data.balance + '$';
-            document.getElementById('loading').style.display = 'none';
-
-            // إظهار HUD فقط عند بدء اللعبة
-        });
-
-        // ============================================================
-        // 🎮 بدء اللعبة
-        // ============================================================
-        socket.on('game_start', (data) => {
-            console.log('🎮 Game starting:', data);
-
-            // إخفاء شاشة التحميل
-            document.getElementById('loading').style.display = 'none';
-
-            // إظهار HUD
-            document.getElementById('hud').style.display = 'block';
-
-            // تحديث حالة اللعبة
-            gameState.gameActive = true;
-            gameState.isEliminated = false;
-            gameState.isAlive = true;
-            gameState.health = 100;
-            gameState.kills = 0;
-            gameState.deaths = 0;
-            gameState.team = data.yourTeam || 1;
-            gameState.position = data.position || { x: 0, z: 0 };
-
-            document.getElementById('healthDisplay').textContent = '100%';
-            document.getElementById('healthDisplay').className = 'value health';
-            document.getElementById('killsDisplay').textContent = '0';
-            document.getElementById('deathsDisplay').textContent = '0';
-
-            // تهيئة المشهد ثلاثي الأبعاد
-            initScene(data);
-        });
-
-        // ============================================================
-        // 🏆 نهاية اللعبة
-        // ============================================================
-        socket.on('game_ended', (data) => {
-            console.log('🏆 Game ended:', data);
-
-            gameState.gameActive = false;
-            gameState.balance = data.yourBalance || gameState.balance;
-
-            document.getElementById('gameBalance').textContent = gameState.balance + '$';
-            document.getElementById('hud').style.display = 'none';
-
-            showReport(data);
-        });
-
-        // ============================================================
-        // 💀 الإقصاء
-        // ============================================================
-        socket.on('you_were_eliminated', (data) => {
-            console.log('💀 You were eliminated!');
-
-            gameState.isEliminated = true;
-            gameState.isAlive = false;
-            gameState.gameActive = false;
-
-            showEliminationMessage('💀 لقد تم تدمير دبابتك!', data.killerName);
-
-            setTimeout(() => {
-                document.getElementById('hud').style.display = 'none';
-                showReport({
-                    winner: 'الخصم',
-                    reward: 0,
-                    yourBalance: gameState.balance,
-                    kills: gameState.kills,
-                    deaths: gameState.deaths + 1,
-                });
-            }, 3000);
-        });
-
-        // ============================================================
-        // 🔄 تحديثات اللعبة
-        // ============================================================
-        socket.on('player_moved', (data) => {
-            if (gameState.gameActive && data.userId !== TELEGRAM_ID) {
-                updateOtherPlayer(data);
-            }
-        });
-
-        socket.on('player_shot', (data) => {
-            if (gameState.gameActive && data.userId !== TELEGRAM_ID) {
-                createRemoteBullet(data);
-            }
-        });
-
-        socket.on('health_update', (data) => {
-            if (data.userId === TELEGRAM_ID) {
-                gameState.health = data.health;
-                document.getElementById('healthDisplay').textContent = data.health + '%';
-                if (data.health < 30) {
-                    document.getElementById('healthDisplay').className = 'value health low';
-                } else {
-                    document.getElementById('healthDisplay').className = 'value health';
-                }
-            }
-            updateTankHealth(data.userId, data.health);
-        });
-
-        socket.on('player_eliminated', (data) => {
-            if (gameState.gameActive) {
-                if (data.userId === TELEGRAM_ID) {
-                    gameState.isAlive = false;
-                    gameState.isEliminated = true;
-                }
-                removeTank(data.userId);
-                updateTeamCounts();
-            }
-        });
-
-        socket.on('game_state_update', (data) => {
-            if (gameState.gameActive && data.players) {
-                data.players.forEach(player => {
-                    if (player.userId !== TELEGRAM_ID) {
-                        updateOtherPlayer({
-                            userId: player.userId,
-                            position: player.position,
-                            rotation: player.rotation,
-                            health: player.health,
-                        });
-                    }
-                });
-                updateTeamCounts();
-            }
-        });
-
-        // ============================================================
-        // 🎮 محرك Three.js - المشهد ثلاثي الأبعاد
-        // ============================================================
-
-        let scene, camera, renderer, composer;
-        let playerTank = null;
-        let playerTurret = null;
-        let playerBarrel = null;
-        const otherTanks = new Map();
-        const otherTurrets = new Map();
-        const bullets = [];
-        const particles = [];
-        const buildings = [];
-        const debris = [];
-        const trees = [];
-        let clock = new THREE.Clock();
-
-        // ============================================================
-        // 🌍 تهيئة المشهد
-        // ============================================================
-        function initScene(data) {
-            // ============================================================
-            // 📷 الكاميرا والمشهد
-            // ============================================================
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x1a2a3a);
-            scene.fog = new THREE.FogExp2(0x1a2a3a, 0.0012);
-
-            camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 600);
-
-            const canvas = document.createElement('canvas');
-            canvas.id = 'gameCanvas';
-            document.body.prepend(canvas);
-
-            renderer = new THREE.WebGLRenderer({
-                canvas: canvas,
-                antialias: true,
-                powerPreference: 'high-performance',
+            socket = io(SERVER_URL, {
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionAttempts: 10,
+                reconnectionDelay: 1000
             });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.2;
-            renderer.outputEncoding = THREE.sRGBEncoding;
 
-            // ============================================================
-            // ✨ التأثيرات اللاحقة (Bloom, SSAO)
-            // ============================================================
-            const renderPass = new THREE.RenderPass(scene, camera);
+            socket.on('connect', () => {
+                console.log('✅ Socket connected');
+                socket.emit('auth', { telegramId });
+            });
 
-            const bloomPass = new THREE.UnrealBloomPass(
-                new THREE.Vector2(window.innerWidth, window.innerHeight),
-                0.15, // قوة Bloom
-                0.5, // نصف القطر
-                0.2 // العتبة
-            );
+            socket.on('auth_success', (data) => {
+                console.log('✅ Auth success:', data);
+                currentUser = data;
+                document.getElementById('userName').textContent = data.username || `مستخدم ${telegramId.slice(-4)}`;
+                document.getElementById('userBalance').textContent = data.balance || 0;
+                document.getElementById('userAvatar').textContent = telegramId.slice(-2);
+                document.getElementById('loadingOverlay').style.display = 'none';
+                loadRooms();
+            });
 
-            composer = new THREE.EffectComposer(renderer);
-            composer.addPass(renderPass);
-            composer.addPass(bloomPass);
+            socket.on('auth_error', (data) => {
+                console.error('❌ Auth error:', data);
+                document.getElementById('loadingOverlay').style.display = 'none';
+                showError('خطأ في المصادقة: ' + data.message);
+            });
 
-            // ============================================================
-            // 💡 الإضاءة
-            // ============================================================
-            // ضوء محيطي
-            const ambient = new THREE.AmbientLight(0x404060, 0.4);
-            scene.add(ambient);
-
-            // ضوء الشمس الرئيسي
-            const sun = new THREE.DirectionalLight(0xffeedd, 1.8);
-            sun.position.set(80, 100, 60);
-            sun.castShadow = true;
-            sun.shadow.mapSize.set(2048, 2048);
-            sun.shadow.camera.near = 0.5;
-            sun.shadow.camera.far = 300;
-            sun.shadow.camera.left = -150;
-            sun.shadow.camera.right = 150;
-            sun.shadow.camera.top = 150;
-            sun.shadow.camera.bottom = -150;
-            sun.shadow.bias = -0.001;
-            scene.add(sun);
-
-            // ضوء ثانوي للتفاصيل
-            const fill = new THREE.DirectionalLight(0x8888ff, 0.3);
-            fill.position.set(-60, 40, -80);
-            scene.add(fill);
-
-            // ضوء خلفي دافئ
-            const rim = new THREE.DirectionalLight(0xff8844, 0.2);
-            rim.position.set(-40, 20, 100);
-            scene.add(rim);
-
-            // ============================================================
-            // 🌍 إنشاء المدينة المهجورة
-            // ============================================================
-            createCity();
-
-            // ============================================================
-            // 🎨 إنشاء الدبابات
-            // ============================================================
-            const players = data.players || [];
-            gameState.team = data.yourTeam || 1;
-
-            // دبابة اللاعب
-            const myPos = data.position || { x: -120, z: -80 };
-            const myColor = gameState.team === 1 ? 0x4a6a3a : 0x6a4a3a;
-            playerTank = createTank(myColor, myPos.x, myPos.z, gameState.team, TELEGRAM_ID, true);
-            playerTank.userData.isPlayer = true;
-            scene.add(playerTank);
-
-            // تخزين المراجع للبرج والمدفع
-            playerTurret = playerTank.getObjectByName('turret');
-            playerBarrel = playerTank.getObjectByName('barrel');
-
-            // دبابات اللاعبين الآخرين
-            for (const p of players) {
-                if (p.userId !== TELEGRAM_ID) {
-                    const pos = p.position || { x: 120, z: 80 };
-                    const color = p.team === 1 ? 0x4a6a3a : 0x6a4a3a;
-                    const tank = createTank(color, pos.x, pos.z, p.team, p.userId, false);
-                    scene.add(tank);
-                    otherTanks.set(p.userId, tank);
+            socket.on('lobby_joined', (data) => {
+                console.log('📋 Lobby joined:', data);
+                if (data.rooms) {
+                    renderRooms(data.rooms);
                 }
-            }
+            });
 
-            // ============================================================
-            // 🎵 الصوت
-            // ============================================================
-            initAudio();
+            socket.on('rooms_list', (data) => {
+                console.log('📋 Rooms list:', data);
+                if (data.rooms) {
+                    renderRooms(data.rooms);
+                }
+            });
 
-            // ============================================================
-            // 🎮 عناصر التحكم
-            // ============================================================
-            setupControls();
+            socket.on('room_joined', (data) => {
+                console.log('✅ Room joined:', data);
+                isInRoom = true;
+                currentRoomId = data.roomId;
+                showStatus('✅ تم الانضمام إلى الغرفة بنجاح!', 'success');
+                document.getElementById('userBalance').textContent = data.balance || 0;
+                loadSeats(data.roomId);
+            });
 
-            // ============================================================
-            // 📐 تغيير حجم النافذة
-            // ============================================================
-            window.addEventListener('resize', onResize);
+            socket.on('room_left', (data) => {
+                console.log('🚪 Room left:', data);
+                isInRoom = false;
+                currentRoomId = null;
+                showStatus('🚪 تم مغادرة الغرفة', 'info');
+                closeSeats();
+                loadRooms();
+            });
 
-            // ============================================================
-            // 🔄 بدء الحلقة
-            // ============================================================
-            animate();
+            socket.on('player_joined', (data) => {
+                console.log('👤 Player joined:', data);
+                if (currentRoomId) {
+                    loadSeats(currentRoomId);
+                }
+            });
 
-            // تحديث أعداد الفرق
-            updateTeamCounts();
+            socket.on('player_left', (data) => {
+                console.log('🚪 Player left:', data);
+                if (currentRoomId) {
+                    loadSeats(currentRoomId);
+                }
+            });
 
-            // إخفاء شاشة التحميل
-            document.getElementById('loading').style.display = 'none';
+            socket.on('error', (data) => {
+                console.error('❌ Socket error:', data);
+                showStatus('❌ ' + data.message, 'error');
+            });
+
+            socket.on('disconnect', () => {
+                console.log('🔌 Socket disconnected');
+                showStatus('⚠️ انقطع الاتصال بالخادم، جاري إعادة المحاولة...', 'error');
+            });
+
+            socket.on('reconnect', () => {
+                console.log('🔄 Socket reconnected');
+                showStatus('✅ تم إعادة الاتصال', 'success');
+                if (currentUser) {
+                    socket.emit('auth', { telegramId: currentUser.telegramId });
+                }
+            });
+
+            return socket;
         }
 
-        // ============================================================
-        // 🏙️ إنشاء المدينة المهجورة
-        // ============================================================
-        function createCity() {
-            // ============================================================
-            // 🌍 الأرضية
-            // ============================================================
-            const groundCanvas = document.createElement('canvas');
-            groundCanvas.width = 1024;
-            groundCanvas.height = 1024;
-            const ctx = groundCanvas.getContext('2d');
+        // ============================================
+        // 🏠 تحميل الغرف
+        // ============================================
+        function loadRooms() {
+            if (socket) {
+                socket.emit('join_lobby');
+            }
+        }
 
-            // لون أساسي للتربة
-            ctx.fillStyle = '#3d4a2a';
-            ctx.fillRect(0, 0, 1024, 1024);
-
-            // نسيج عشبي متفرق
-            for (let i = 0; i < 5000; i++) {
-                const x = Math.random() * 1024;
-                const y = Math.random() * 1024;
-                const shade = 60 + Math.random() * 60;
-                ctx.fillStyle = `rgb(${shade}, ${shade + 30}, ${shade - 20})`;
-                ctx.fillRect(x, y, 2 + Math.random() * 4, 2 + Math.random() * 4);
+        // ============================================
+        // 🎨 عرض الغرف
+        // ============================================
+        function renderRooms(rooms) {
+            const grid = document.getElementById('roomsGrid');
+            
+            if (!rooms || rooms.length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column:1/-1;text-align:center;padding:40px;color:#888;">
+                        🏠 لا توجد غرف متاحة حالياً<br>
+                        <span style="font-size:14px;">سيتم إنشاء غرفة جديدة عند الحاجة</span>
+                    </div>
+                `;
+                return;
             }
 
-            // بقع صحراوية
-            for (let i = 0; i < 200; i++) {
-                const x = Math.random() * 1024;
-                const y = Math.random() * 1024;
-                const r = 20 + Math.random() * 80;
-                const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-                grad.addColorStop(0, 'rgba(180, 160, 100, 0.15)');
-                grad.addColorStop(1, 'rgba(180, 160, 100, 0)');
-                ctx.fillStyle = grad;
-                ctx.beginPath();
-                ctx.arc(x, y, r, 0, Math.PI * 2);
-                ctx.fill();
+            // ترتيب الغرف حسب النوع
+            const orderedRooms = [
+                rooms.find(r => r.typeName === 'غرفة المبتدئين'),
+                rooms.find(r => r.typeName === 'غرفة المتقدمين'),
+                rooms.find(r => r.typeName === 'غرفة المحترفين')
+            ].filter(Boolean);
+
+            const icons = {
+                'غرفة المبتدئين': '🟢',
+                'غرفة المتقدمين': '🟡',
+                'غرفة المحترفين': '🔴'
+            };
+
+            const colors = {
+                'غرفة المبتدئين': '#2ecc71',
+                'غرفة المتقدمين': '#f1c40f',
+                'غرفة المحترفين': '#e74c3c'
+            };
+
+            grid.innerHTML = orderedRooms.map(room => {
+                const isFull = room.isFull || room.players >= room.maxSeats;
+                const statusClass = isFull ? 'full' : (room.status === 'active' ? 'active' : 'waiting');
+                const statusText = isFull ? '🟢 مكتملة' : (room.status === 'active' ? '⚔️ جارية' : '🔓 متاحة');
+                
+                return `
+                    <div class="room-card" onclick="${isFull ? '' : `selectRoom('${room.id}')`}" 
+                         style="${isFull ? 'opacity:0.6;cursor:not-allowed;' : ''}">
+                        <div class="room-icon">${icons[room.typeName] || '🏠'}</div>
+                        <div class="room-name" style="color:${colors[room.typeName] || '#fff'}">${room.name}</div>
+                        <div class="room-details">
+                            👥 <span>${room.players}</span>/${room.maxSeats} لاعب
+                            &nbsp;|&nbsp; 💰 <span>${room.seatPrice}</span> $
+                        </div>
+                        <div class="room-status">
+                            <span class="status-badge ${statusClass}">${statusText}</span>
+                            <span class="players-count">
+                                ${isFull ? '✅ مكتملة' : `⏳ يحتاج ${room.needed} لاعب`}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ============================================
+        // 🪑 اختيار غرفة وعرض المقاعد
+        // ============================================
+        function selectRoom(roomId) {
+            if (isInRoom) {
+                showStatus('⚠️ أنت بالفعل في غرفة. اخرج أولاً', 'error');
+                return;
             }
 
-            const groundTexture = new THREE.CanvasTexture(groundCanvas);
-            groundTexture.wrapS = THREE.RepeatWrapping;
-            groundTexture.wrapT = THREE.RepeatWrapping;
-            groundTexture.repeat.set(40, 40);
+            selectedRoomId = roomId;
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            
+            // إرسال طلب الانضمام
+            socket.emit('join_room', { roomId });
+            
+            // بدلاً من ذلك، نعرض المقاعد مباشرة ونطلب الانضمام
+            // يتم التعامل مع الانضمام في حدث room_joined
+        }
 
-            const groundMat = new THREE.MeshStandardMaterial({
-                map: groundTexture,
-                roughness: 0.95,
-                metalness: 0,
-                envMapIntensity: 0.2,
-            });
-
-            const groundGeo = new THREE.PlaneGeometry(800, 800, 120, 120);
-            groundGeo.rotateX(-Math.PI / 2);
-            const ground = new THREE.Mesh(groundGeo, groundMat);
-            ground.receiveShadow = true;
-            ground.position.y = -0.5;
-            scene.add(ground);
-
-            // ============================================================
-            // 🏢 المباني
-            // ============================================================
-            const buildingMaterials = [
-                { color: 0x8a7a5a, roughness: 0.9, metalness: 0.1 },
-                { color: 0x7a6a4a, roughness: 0.85, metalness: 0.1 },
-                { color: 0x9a8a6a, roughness: 0.9, metalness: 0.05 },
-                { color: 0x6a5a3a, roughness: 0.95, metalness: 0.05 },
-                { color: 0x5a4a3a, roughness: 0.9, metalness: 0.1 },
-            ];
-
-            const windowMat = new THREE.MeshStandardMaterial({
-                color: 0x224466,
-                roughness: 0.3,
-                metalness: 0.7,
-                emissive: 0x112233,
-                emissiveIntensity: 0.1,
-            });
-
-            const buildingPositions = [];
-
-            // مباني سكنية
-            for (let i = 0; i < 80; i++) {
-                const x = (Math.random() - 0.5) * 500;
-                const z = (Math.random() - 0.5) * 500;
-
-                // تجنب وضع المباني فوق بعضها
-                let overlap = false;
-                for (const pos of buildingPositions) {
-                    if (Math.sqrt((x - pos.x) ** 2 + (z - pos.z) ** 2) < 15) {
-                        overlap = true;
-                        break;
-                    }
-                }
-                if (overlap) continue;
-
-                buildingPositions.push({ x, z });
-
-                const w = 6 + Math.random() * 12;
-                const d = 6 + Math.random() * 12;
-                const h = 4 + Math.random() * 20;
-
-                const mat = buildingMaterials[Math.floor(Math.random() * buildingMaterials.length)];
-                const material = new THREE.MeshStandardMaterial(mat);
-
-                const building = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
-                building.position.set(x, h / 2 - 0.5, z);
-                building.castShadow = true;
-                building.receiveShadow = true;
-                scene.add(building);
-                buildings.push(building);
-
-                // نوافذ
-                if (h > 6) {
-                    const windowCount = Math.floor(Math.random() * 8) + 4;
-                    for (let j = 0; j < windowCount; j++) {
-                        const wx = (Math.random() - 0.5) * w * 0.7;
-                        const wz = (Math.random() - 0.5) * d * 0.7;
-                        const wy = (Math.random() - 0.5) * h * 0.6 + h * 0.3;
-
-                        const windowMesh = new THREE.Mesh(
-                            new THREE.PlaneGeometry(0.8, 1.2),
-                            windowMat
-                        );
-
-                        // تحديد الجانب
-                        const side = Math.floor(Math.random() * 4);
-                        if (side === 0) {
-                            windowMesh.position.set(wx, wy, d / 2 + 0.01);
-                        } else if (side === 1) {
-                            windowMesh.position.set(wx, wy, -d / 2 - 0.01);
-                            windowMesh.rotation.y = Math.PI;
-                        } else if (side === 2) {
-                            windowMesh.position.set(w / 2 + 0.01, wy, wz);
-                            windowMesh.rotation.y = Math.PI / 2;
-                        } else {
-                            windowMesh.position.set(-w / 2 - 0.01, wy, wz);
-                            windowMesh.rotation.y = -Math.PI / 2;
+        // ============================================
+        // 🪑 تحميل المقاعد
+        // ============================================
+        function loadSeats(roomId) {
+            // جلب معلومات الغرفة والمقاعد من الخادم
+            fetch(`${SERVER_URL}/api/rooms`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.rooms) {
+                        const room = data.rooms.find(r => r.id === roomId);
+                        if (room) {
+                            displaySeats(room);
                         }
-                        building.add(windowMesh);
                     }
-                }
-
-                // سطح متضرر
-                if (Math.random() > 0.5) {
-                    const roofMat = new THREE.MeshStandardMaterial({
-                        color: 0x5a4a3a,
-                        roughness: 0.9,
-                    });
-                    const roof = new THREE.Mesh(
-                        new THREE.BoxGeometry(w * 0.3, 0.3, d * 0.3),
-                        roofMat
-                    );
-                    roof.position.set(
-                        (Math.random() - 0.5) * w * 0.3,
-                        h / 2 + 0.2,
-                        (Math.random() - 0.5) * d * 0.3
-                    );
-                    roof.rotation.x = (Math.random() - 0.5) * 0.2;
-                    roof.rotation.z = (Math.random() - 0.5) * 0.2;
-                    building.add(roof);
-                }
-            }
-
-            // ============================================================
-            // 🏗️ أنقاض وحطام
-            // ============================================================
-            const debrisMat = new THREE.MeshStandardMaterial({
-                color: 0x6a5a4a,
-                roughness: 0.95,
-                metalness: 0.05,
-            });
-
-            for (let i = 0; i < 150; i++) {
-                const x = (Math.random() - 0.5) * 500;
-                const z = (Math.random() - 0.5) * 500;
-
-                // تجنب وضع الحطام في منتصف الطرق
-                if (Math.abs(x) < 30 && Math.abs(z) < 30) continue;
-
-                const size = 0.5 + Math.random() * 2;
-                const type = Math.random();
-
-                let mesh;
-                if (type < 0.3) {
-                    mesh = new THREE.Mesh(new THREE.BoxGeometry(size, size * 0.3, size * 0.7), debrisMat);
-                } else if (type < 0.6) {
-                    mesh = new THREE.Mesh(new THREE.DodecahedronGeometry(size * 0.5), debrisMat);
-                } else {
-                    mesh = new THREE.Mesh(new THREE.CylinderGeometry(size * 0.4, size * 0.6, size * 0.5, 5), debrisMat);
-                }
-
-                mesh.position.set(x, size * 0.15, z);
-                mesh.rotation.set(
-                    (Math.random() - 0.5) * 2,
-                    Math.random() * Math.PI * 2,
-                    (Math.random() - 0.5) * 2
-                );
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
-                scene.add(mesh);
-                debris.push(mesh);
-            }
-
-            // ============================================================
-            // 🌳 أشجار ميتة
-            // ============================================================
-            const trunkMat = new THREE.MeshStandardMaterial({
-                color: 0x3a2a1a,
-                roughness: 0.95,
-                metalness: 0,
-            });
-
-            const branchMat = new THREE.MeshStandardMaterial({
-                color: 0x2a1a0a,
-                roughness: 0.95,
-                metalness: 0,
-            });
-
-            for (let i = 0; i < 60; i++) {
-                const x = (Math.random() - 0.5) * 480;
-                const z = (Math.random() - 0.5) * 480;
-
-                // تجنب وضع الأشجار في وسط المدينة
-                if (Math.abs(x) < 80 && Math.abs(z) < 80) continue;
-
-                const tree = new THREE.Group();
-                const height = 3 + Math.random() * 6;
-
-                // الجذع
-                const trunk = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.2 + Math.random() * 0.3, 0.4 + Math.random() * 0.4, height, 6),
-                    trunkMat
-                );
-                trunk.position.y = height / 2;
-                trunk.castShadow = true;
-                trunk.receiveShadow = true;
-                tree.add(trunk);
-
-                // الفروع (أشجار ميتة بدون أوراق)
-                const branchCount = 3 + Math.floor(Math.random() * 5);
-                for (let j = 0; j < branchCount; j++) {
-                    const bHeight = 0.8 + Math.random() * 1.5;
-                    const angle = Math.random() * Math.PI * 2;
-                    const radius = 0.5 + Math.random() * 0.8;
-
-                    const branch = new THREE.Mesh(
-                        new THREE.CylinderGeometry(0.05, 0.12, bHeight, 4),
-                        branchMat
-                    );
-                    branch.position.set(
-                        Math.cos(angle) * radius,
-                        height * (0.3 + Math.random() * 0.4),
-                        Math.sin(angle) * radius
-                    );
-                    branch.rotation.z = (Math.random() - 0.5) * 1.2;
-                    branch.rotation.x = (Math.random() - 0.5) * 1.2;
-                    branch.castShadow = true;
-                    branch.receiveShadow = true;
-                    tree.add(branch);
-                }
-
-                tree.position.set(x, -0.5, z);
-                tree.rotation.y = Math.random() * Math.PI * 2;
-                scene.add(tree);
-                trees.push(tree);
-            }
-
-            // ============================================================
-            // 🌫️ غبار وجسيمات
-            // ============================================================
-            const dustTexture = createDustTexture();
-            const dustMat = new THREE.PointsMaterial({
-                map: dustTexture,
-                size: 0.5,
-                transparent: true,
-                opacity: 0.15,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-            });
-
-            const dustGeo = new THREE.BufferGeometry();
-            const dustCount = 3000;
-            const dustPositions = new Float32Array(dustCount * 3);
-            for (let i = 0; i < dustCount * 3; i++) {
-                dustPositions[i] = (Math.random() - 0.5) * 600;
-                dustPositions[i] += i % 3 === 1 ? 10 : 0; // ارتفاع
-            }
-            dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
-
-            const dustParticles = new THREE.Points(dustGeo, dustMat);
-            dustParticles.position.y = 5;
-            scene.add(dustParticles);
-
-            // ============================================================
-            // 🚧 جدران دفاعية
-            // ============================================================
-            const wallMat = new THREE.MeshStandardMaterial({
-                color: 0x5a4a3a,
-                roughness: 0.9,
-                metalness: 0.1,
-            });
-
-            // جدار الفريق 1 (أخضر)
-            for (let i = -4; i <= 4; i++) {
-                const wall = new THREE.Mesh(
-                    new THREE.BoxGeometry(8, 4, 2),
-                    wallMat
-                );
-                wall.position.set(-95 + i * 8, 2, -75);
-                wall.castShadow = true;
-                wall.receiveShadow = true;
-                scene.add(wall);
-                buildings.push(wall);
-            }
-
-            // جدار الفريق 2 (أحمر)
-            for (let i = -4; i <= 4; i++) {
-                const wall = new THREE.Mesh(
-                    new THREE.BoxGeometry(8, 4, 2),
-                    wallMat
-                );
-                wall.position.set(95 + i * 8, 2, 75);
-                wall.castShadow = true;
-                wall.receiveShadow = true;
-                scene.add(wall);
-                buildings.push(wall);
-            }
-
-            // ============================================================
-            // 🗺️ علامات أرضية
-            // ============================================================
-            const markerMat = new THREE.MeshStandardMaterial({
-                color: 0x8a7a5a,
-                roughness: 0.9,
-                transparent: true,
-                opacity: 0.3,
-            });
-
-            // دوائر متحدة المركز في وسط الساحة
-            for (let r = 10; r <= 60; r += 10) {
-                const ring = new THREE.Mesh(
-                    new THREE.RingGeometry(r - 0.5, r + 0.5, 64),
-                    markerMat
-                );
-                ring.rotation.x = -Math.PI / 2;
-                ring.position.y = -0.45;
-                scene.add(ring);
-            }
-        }
-
-        // ============================================================
-        // 🎨 إنشاء نسيج الغبار
-        // ============================================================
-        function createDustTexture() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 64;
-            canvas.height = 64;
-            const ctx = canvas.getContext('2d');
-
-            const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-            gradient.addColorStop(0, 'rgba(255,255,255,1)');
-            gradient.addColorStop(0.3, 'rgba(255,255,255,0.6)');
-            gradient.addColorStop(1, 'rgba(255,255,255,0)');
-
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, 64, 64);
-
-            const texture = new THREE.CanvasTexture(canvas);
-            texture.needsUpdate = true;
-            return texture;
-        }
-
-        // ============================================================
-        // 🎨 إنشاء نسيج تمويه الدبابة
-        // ============================================================
-        function createCamoTexture(colors) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 256;
-            canvas.height = 256;
-            const ctx = canvas.getContext('2d');
-
-            // لون الأساس
-            ctx.fillStyle = colors.base;
-            ctx.fillRect(0, 0, 256, 256);
-
-            // بقع التمويه
-            for (let i = 0; i < 30; i++) {
-                ctx.fillStyle = colors.spot1;
-                ctx.beginPath();
-                ctx.arc(
-                    Math.random() * 256,
-                    Math.random() * 256,
-                    20 + Math.random() * 40,
-                    0,
-                    Math.PI * 2
-                );
-                ctx.fill();
-            }
-
-            for (let i = 0; i < 20; i++) {
-                ctx.fillStyle = colors.spot2;
-                ctx.beginPath();
-                ctx.arc(
-                    Math.random() * 256,
-                    Math.random() * 256,
-                    10 + Math.random() * 25,
-                    0,
-                    Math.PI * 2
-                );
-                ctx.fill();
-            }
-
-            // خطوط عشوائية
-            for (let i = 0; i < 20; i++) {
-                ctx.strokeStyle = colors.spot2;
-                ctx.lineWidth = 2 + Math.random() * 4;
-                ctx.beginPath();
-                ctx.moveTo(Math.random() * 256, Math.random() * 256);
-                ctx.lineTo(Math.random() * 256, Math.random() * 256);
-                ctx.stroke();
-            }
-
-            const texture = new THREE.CanvasTexture(canvas);
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
-            texture.repeat.set(2, 2);
-            return texture;
-        }
-
-        // ============================================================
-        // 🎨 إنشاء دبابة متقدمة
-        // ============================================================
-        function createTank(color, x, z, team, userId, isPlayer) {
-            const group = new THREE.Group();
-            group.userData = {
-                userId: userId,
-                team: team,
-                health: 100,
-                isPlayer: isPlayer || false,
-                speed: 0,
-                targetPosition: { x: x, z: z },
-                targetRotation: 0,
-            };
-
-            // ============================================================
-            // تمويه حسب الفريق
-            // ============================================================
-            let camoTexture;
-            if (team === 1) {
-                camoTexture = createCamoTexture({
-                    base: '#4a6a3a',
-                    spot1: '#3a5a2a',
-                    spot2: '#2a4a1a',
-                });
-            } else {
-                camoTexture = createCamoTexture({
-                    base: '#6a4a3a',
-                    spot1: '#5a3a2a',
-                    spot2: '#4a2a1a',
-                });
-            }
-
-            const tankMat = new THREE.MeshStandardMaterial({
-                map: camoTexture,
-                roughness: 0.8,
-                metalness: 0.3,
-                envMapIntensity: 0.3,
-            });
-
-            const trackMat = new THREE.MeshStandardMaterial({
-                color: 0x1a1a1a,
-                roughness: 0.95,
-                metalness: 0.1,
-            });
-
-            const barrelMat = new THREE.MeshStandardMaterial({
-                color: 0x2a2a2a,
-                roughness: 0.6,
-                metalness: 0.7,
-            });
-
-            const detailMat = new THREE.MeshStandardMaterial({
-                color: 0x3a3a3a,
-                roughness: 0.7,
-                metalness: 0.4,
-            });
-
-            // ============================================================
-            // الهيكل السفلي
-            // ============================================================
-            const chassis = new THREE.Mesh(
-                new THREE.BoxGeometry(6.5, 1.6, 4.5),
-                tankMat
-            );
-            chassis.position.y = 0.8;
-            chassis.castShadow = true;
-            chassis.receiveShadow = true;
-            group.add(chassis);
-
-            // ============================================================
-            // المسارات
-            // ============================================================
-            const trackGeo = new THREE.BoxGeometry(6.8, 1.0, 0.8);
-
-            const leftTrack = new THREE.Mesh(trackGeo, trackMat);
-            leftTrack.position.set(0, 0.5, 2.3);
-            leftTrack.castShadow = true;
-            leftTrack.receiveShadow = true;
-            group.add(leftTrack);
-
-            const rightTrack = new THREE.Mesh(trackGeo, trackMat);
-            rightTrack.position.set(0, 0.5, -2.3);
-            rightTrack.castShadow = true;
-            rightTrack.receiveShadow = true;
-            group.add(rightTrack);
-
-            // ============================================================
-            // الدروع الجانبية
-            // ============================================================
-            const skirtMat = new THREE.MeshStandardMaterial({
-                color: 0x3a3a3a,
-                roughness: 0.8,
-                metalness: 0.3,
-            });
-
-            const skirtGeo = new THREE.BoxGeometry(6.4, 0.6, 0.15);
-
-            const leftSkirt = new THREE.Mesh(skirtGeo, skirtMat);
-            leftSkirt.position.set(0, 0.9, 2.65);
-            leftSkirt.castShadow = true;
-            leftSkirt.receiveShadow = true;
-            group.add(leftSkirt);
-
-            const rightSkirt = new THREE.Mesh(skirtGeo, skirtMat);
-            rightSkirt.position.set(0, 0.9, -2.65);
-            rightSkirt.castShadow = true;
-            rightSkirt.receiveShadow = true;
-            group.add(rightSkirt);
-
-            // ============================================================
-            // العجلات
-            // ============================================================
-            const wheelMat = new THREE.MeshStandardMaterial({
-                color: 0x111111,
-                roughness: 0.9,
-                metalness: 0.1,
-            });
-
-            const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.7, 12);
-
-            for (let i = -2.8; i <= 2.8; i += 1.1) {
-                const wheelL = new THREE.Mesh(wheelGeo, wheelMat);
-                wheelL.rotation.x = Math.PI / 2;
-                wheelL.position.set(i, 0.45, 2.1);
-                wheelL.castShadow = true;
-                wheelL.receiveShadow = true;
-                group.add(wheelL);
-
-                const wheelR = new THREE.Mesh(wheelGeo, wheelMat);
-                wheelR.rotation.x = Math.PI / 2;
-                wheelR.position.set(i, 0.45, -2.1);
-                wheelR.castShadow = true;
-                wheelR.receiveShadow = true;
-                group.add(wheelR);
-            }
-
-            // ============================================================
-            // البرج (مع إمكانية الدوران)
-            // ============================================================
-            const turretGroup = new THREE.Group();
-            turretGroup.name = 'turret';
-            turretGroup.position.y = 2.2;
-            turretGroup.position.z = -0.3;
-            group.add(turretGroup);
-
-            // قاعدة البرج
-            const turretBase = new THREE.Mesh(
-                new THREE.CylinderGeometry(1.8, 2.0, 1.0, 16),
-                tankMat
-            );
-            turretBase.position.y = 0.5;
-            turretBase.castShadow = true;
-            turretBase.receiveShadow = true;
-            turretGroup.add(turretBase);
-
-            // البرج العلوي
-            const turretTop = new THREE.Mesh(
-                new THREE.BoxGeometry(3.2, 0.9, 2.6),
-                tankMat
-            );
-            turretTop.position.y = 1.1;
-            turretTop.castShadow = true;
-            turretTop.receiveShadow = true;
-            turretGroup.add(turretTop);
-
-            // فتحة القائد
-            const hatchMat = new THREE.MeshStandardMaterial({
-                color: 0x2a2a2a,
-                roughness: 0.7,
-                metalness: 0.5,
-            });
-
-            const hatch = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.4, 0.5, 0.2, 12),
-                hatchMat
-            );
-            hatch.position.set(-0.7, 1.6, 0.5);
-            hatch.castShadow = true;
-            hatch.receiveShadow = true;
-            turretGroup.add(hatch);
-
-            // رشاش صغير
-            const mg = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.05, 0.08, 0.6, 6),
-                barrelMat
-            );
-            mg.rotation.x = Math.PI / 2.5;
-            mg.position.set(0, 1.7, 0.7);
-            turretGroup.add(mg);
-
-            // ============================================================
-            // المدفع (مع إمكانية الرفع)
-            // ============================================================
-            const barrelGroup = new THREE.Group();
-            barrelGroup.name = 'barrel';
-            barrelGroup.position.set(0, 0.3, 1.6);
-            turretGroup.add(barrelGroup);
-
-            // المدفع الرئيسي
-            const barrel = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.15, 0.25, 4.8, 12),
-                barrelMat
-            );
-            barrel.rotation.x = Math.PI / 2;
-            barrel.position.z = 2.4;
-            barrel.castShadow = true;
-            barrel.receiveShadow = true;
-            barrelGroup.add(barrel);
-
-            // فوهة المدفع
-            const muzzle = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.25, 0.3, 0.5, 12),
-                barrelMat
-            );
-            muzzle.rotation.x = Math.PI / 2;
-            muzzle.position.z = 4.9;
-            muzzle.castShadow = true;
-            muzzle.receiveShadow = true;
-            barrelGroup.add(muzzle);
-
-            // كاتم الصوت (تفصيل)
-            const muzzleBrake = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.3, 0.35, 0.3, 8),
-                detailMat
-            );
-            muzzleBrake.rotation.x = Math.PI / 2;
-            muzzleBrake.position.z = 5.2;
-            barrelGroup.add(muzzleBrake);
-
-            // ============================================================
-            // تفاصيل إضافية
-            // ============================================================
-            // خزانات الوقود الخلفية
-            const fuelMat = new THREE.MeshStandardMaterial({
-                color: 0x2a2a2a,
-                roughness: 0.7,
-                metalness: 0.4,
-            });
-
-            for (let i = -0.6; i <= 0.6; i += 1.2) {
-                const fuel = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.3, 0.35, 0.8, 8),
-                    fuelMat
-                );
-                fuel.position.set(i, 0.5, -2.6);
-                fuel.rotation.x = Math.PI / 2;
-                fuel.castShadow = true;
-                fuel.receiveShadow = true;
-                group.add(fuel);
-            }
-
-            // شبكة تهوية
-            const ventMat = new THREE.MeshStandardMaterial({
-                color: 0x1a1a1a,
-                roughness: 0.9,
-                metalness: 0.1,
-            });
-
-            for (let i = -0.8; i <= 0.8; i += 0.4) {
-                const vent = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.05, 0.05, 0.15),
-                    ventMat
-                );
-                vent.position.set(i, 1.3, -2.45);
-                group.add(vent);
-            }
-
-            // ============================================================
-            // وضع الدبابة في الموقع
-            // ============================================================
-            group.position.set(x, -0.5, z);
-            group.userData.startX = x;
-            group.userData.startZ = z;
-
-            return group;
-        }
-
-        // ============================================================
-        // 🎵 نظام الصوت المتقدم
-        // ============================================================
-        let audioCtx = null;
-        let engineOsc = null;
-        let engineGain = null;
-        let engineFilter = null;
-        let engineRunning = false;
-
-        function initAudio() {
-            try {
-                audioCtx = new(window.AudioContext || window.webkitAudioContext)();
-
-                // محرك الدبابة
-                engineOsc = audioCtx.createOscillator();
-                engineGain = audioCtx.createGain();
-                engineFilter = audioCtx.createBiquadFilter();
-
-                engineOsc.type = 'sawtooth';
-                engineOsc.frequency.value = 30;
-
-                engineFilter.type = 'lowpass';
-                engineFilter.frequency.value = 150;
-                engineFilter.Q.value = 0.5;
-
-                engineGain.gain.value = 0;
-
-                engineOsc.connect(engineFilter);
-                engineFilter.connect(engineGain);
-                engineGain.connect(audioCtx.destination);
-
-                engineOsc.start();
-                engineRunning = true;
-
-                console.log('🎵 Audio engine initialized');
-
-            } catch (error) {
-                console.warn('⚠️ Audio initialization failed:', error);
-            }
-        }
-
-        function updateEngineSound(speed) {
-            if (!engineRunning || !engineOsc) return;
-
-            const freq = 30 + Math.abs(speed) * 60;
-            const gain = Math.min(0.15, Math.abs(speed) * 0.08);
-
-            engineOsc.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.05);
-            engineGain.gain.setTargetAtTime(gain, audioCtx.currentTime, 0.05);
-        }
-
-        function playShotSound() {
-            if (!audioCtx) return;
-
-            try {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                const filter = audioCtx.createBiquadFilter();
-
-                osc.type = 'square';
-                osc.frequency.setValueAtTime(200, audioCtx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(60, audioCtx.currentTime + 0.2);
-
-                filter.type = 'lowpass';
-                filter.frequency.value = 300;
-                filter.Q.value = 0.7;
-
-                gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
-
-                osc.connect(filter);
-                filter.connect(gain);
-                gain.connect(audioCtx.destination);
-
-                osc.start(audioCtx.currentTime);
-                osc.stop(audioCtx.currentTime + 0.25);
-
-            } catch (error) {
-                console.warn('⚠️ Shot sound error:', error);
-            }
-        }
-
-        function playExplosionSound(distance) {
-            if (!audioCtx) return;
-
-            try {
-                const vol = Math.max(0.05, Math.min(0.8, 1 - distance / 60));
-
-                // ضوضاء الانفجار
-                const bufferSize = audioCtx.sampleRate * 0.8;
-                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-                const data = buffer.getChannelData(0);
-
-                for (let i = 0; i < bufferSize; i++) {
-                    const env = Math.exp(-i / bufferSize * 3);
-                    data[i] = (Math.random() * 2 - 1) * env;
-                }
-
-                const noise = audioCtx.createBufferSource();
-                noise.buffer = buffer;
-
-                const gain = audioCtx.createGain();
-                gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.8);
-
-                const filter = audioCtx.createBiquadFilter();
-                filter.type = 'lowpass';
-                filter.frequency.value = 800;
-                filter.Q.value = 0.5;
-
-                noise.connect(filter);
-                filter.connect(gain);
-                gain.connect(audioCtx.destination);
-
-                noise.start(audioCtx.currentTime);
-
-                // رنين منخفض التردد
-                const osc = audioCtx.createOscillator();
-                const gain2 = audioCtx.createGain();
-
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(50, audioCtx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.5);
-
-                gain2.gain.setValueAtTime(vol * 0.3, audioCtx.currentTime);
-                gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-
-                osc.connect(gain2);
-                gain2.connect(audioCtx.destination);
-
-                osc.start(audioCtx.currentTime);
-                osc.stop(audioCtx.currentTime + 0.5);
-
-            } catch (error) {
-                console.warn('⚠️ Explosion sound error:', error);
-            }
-        }
-
-        // ============================================================
-        // 🎮 عناصر التحكم
-        // ============================================================
-        let joystick = { x: 0, y: 0 };
-        let isJoystickActive = false;
-        let lastMoveTime = 0;
-
-        function setupControls() {
-            // ============================================================
-            // عصا التحكم (لمس)
-            // ============================================================
-            const base = document.getElementById('joystickBase');
-            const handle = document.getElementById('joystickHandle');
-
-            const moveJoystick = (e) => {
-                if (!isJoystickActive) return;
-
-                const rect = base.getBoundingClientRect();
-                const touch = e.touches ? e.touches[0] : e;
-
-                let dx = touch.clientX - (rect.left + rect.width / 2);
-                let dy = touch.clientY - (rect.top + rect.height / 2);
-
-                const maxDist = rect.width / 2 - 10;
-                const dist = Math.min(Math.sqrt(dx * dx + dy * dy), maxDist);
-
-                if (dist > 0) {
-                    const angle = Math.atan2(dy, dx);
-                    dx = Math.cos(angle) * dist;
-                    dy = Math.sin(angle) * dist;
-                }
-
-                handle.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-
-                joystick.x = dx / maxDist;
-                joystick.y = dy / maxDist;
-
-                // تحديث سرعة الدبابة
-                updateTankMovement();
-            };
-
-            const endJoystick = () => {
-                isJoystickActive = false;
-                handle.style.transform = 'translate(-50%, -50%)';
-                joystick = { x: 0, y: 0 };
-                updateTankMovement();
-            };
-
-            base.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                isJoystickActive = true;
-                moveJoystick(e);
-            });
-
-            base.addEventListener('mousedown', () => {
-                isJoystickActive = true;
-            });
-
-            document.addEventListener('touchmove', moveJoystick);
-            document.addEventListener('mousemove', moveJoystick);
-
-            document.addEventListener('touchend', endJoystick);
-            document.addEventListener('mouseup', endJoystick);
-
-            // ============================================================
-            // زر الإطلاق
-            // ============================================================
-            const fireBtn = document.getElementById('fireBtn');
-            const cooldownOverlay = document.getElementById('cooldownOverlay');
-
-            const fire = () => {
-                if (gameState.isEliminated || !gameState.gameActive || !playerTank) return;
-
-                const now = Date.now();
-                if (now - gameState.lastShot < gameState.cooldown) return;
-
-                gameState.lastShot = now;
-
-                // إطلاق رصاصة
-                fireBullet();
-
-                // عرض التباطؤ
-                cooldownOverlay.classList.add('show');
-                let count = Math.ceil(gameState.cooldown / 1000);
-                cooldownOverlay.textContent = count;
-
-                const interval = setInterval(() => {
-                    count--;
-                    if (count <= 0) {
-                        clearInterval(interval);
-                        cooldownOverlay.classList.remove('show');
-                    } else {
-                        cooldownOverlay.textContent = count;
-                    }
-                }, 1000);
-            };
-
-            fireBtn.addEventListener('click', fire);
-            fireBtn.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                fire();
-            });
-
-            // ============================================================
-            // لوحة المفاتيح
-            // ============================================================
-            const keys = {};
-
-            document.addEventListener('keydown', (e) => {
-                keys[e.key] = true;
-
-                if (e.key === ' ' || e.key === 'Enter') {
-                    e.preventDefault();
-                    fire();
-                }
-            });
-
-            document.addEventListener('keyup', (e) => {
-                keys[e.key] = false;
-            });
-
-            // تحديث حركة لوحة المفاتيح
-            setInterval(() => {
-                if (!gameState.gameActive || gameState.isEliminated) return;
-
-                let dx = 0,
-                    dy = 0;
-                if (keys['w'] || keys['W'] || keys['ArrowUp']) dy = -1;
-                if (keys['s'] || keys['S'] || keys['ArrowDown']) dy = 1;
-                if (keys['a'] || keys['A'] || keys['ArrowLeft']) dx = -1;
-                if (keys['d'] || keys['D'] || keys['ArrowRight']) dx = 1;
-
-                if (dx !== 0 || dy !== 0) {
-                    const len = Math.sqrt(dx * dx + dy * dy);
-                    joystick.x = dx / len * 0.8;
-                    joystick.y = dy / len * 0.8;
-                    updateTankMovement();
-                }
-            }, 50);
-
-            // ============================================================
-            // ملء الشاشة
-            // ============================================================
-            document.getElementById('fullscreenBtn').addEventListener('click', () => {
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(() => {});
-                } else {
-                    document.exitFullscreen().catch(() => {});
-                }
-            });
-
-            // ============================================================
-            // التحقق من الوضع الأفقي
-            // ============================================================
-            const checkOrientation = () => {
-                const warning = document.getElementById('landscapeWarning');
-                if (window.innerHeight > window.innerWidth) {
-                    warning.style.display = 'flex';
-                } else {
-                    warning.style.display = 'none';
-                }
-            };
-
-            window.addEventListener('resize', checkOrientation);
-            checkOrientation();
-        }
-
-        // ============================================================
-        // 🎯 تحديث حركة الدبابة
-        // ============================================================
-        function updateTankMovement() {
-            if (!playerTank || gameState.isEliminated) return;
-
-            const speed = -joystick.y * 0.25;
-            const rot = -joystick.x * 0.04;
-
-            // تحديث سرعة المحرك الصوتي
-            updateEngineSound(Math.abs(speed));
-
-            // تطبيق الدوران والحركة
-            playerTank.rotation.y += rot;
-
-            // حساب الموقع الجديد
-            const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(playerTank.quaternion);
-            const newX = playerTank.position.x + forward.x * speed;
-            const newZ = playerTank.position.z + forward.z * speed;
-
-            // التحقق من التصادم مع المباني
-            if (!checkCollision(newX, newZ)) {
-                playerTank.position.x = newX;
-                playerTank.position.z = newZ;
-
-                // تحديث برج المدفع ليتجه مع الحركة
-                const turret = playerTank.getObjectByName('turret');
-                if (turret) {
-                    // البرج يتبع حركة الدبابة بشكل طبيعي
-                }
-            }
-
-            // تحديث الموقع في الخادم (بمعدل محدود)
-            const now = Date.now();
-            if (now - lastMoveTime > 50) {
-                lastMoveTime = now;
-                socket.emit('move', {
-                    position: {
-                        x: playerTank.position.x,
-                        z: playerTank.position.z,
-                    },
-                    rotation: playerTank.rotation.y,
-                });
-            }
-
-            // تحديث الكاميرا
-            updateCamera();
-        }
-
-        // ============================================================
-        // 📷 تحديث الكاميرا
-        // ============================================================
-        let cameraShake = 0;
-
-        function updateCamera() {
-            if (!playerTank) return;
-
-            const offset = new THREE.Vector3(0, 8, -14).applyQuaternion(playerTank.quaternion);
-            const targetPos = playerTank.position.clone().add(offset);
-
-            // اهتزاز الكاميرا
-            if (cameraShake > 0) {
-                targetPos.x += (Math.random() - 0.5) * cameraShake * 0.5;
-                targetPos.y += (Math.random() - 0.5) * cameraShake * 0.3;
-                cameraShake *= 0.92;
-            }
-
-            camera.position.lerp(targetPos, 0.08);
-            camera.lookAt(playerTank.position.clone().add(new THREE.Vector3(0, 1.5, 0)));
-        }
-
-        // ============================================================
-        // 💥 التصادم
-        // ============================================================
-        function checkCollision(x, z) {
-            // حدود الساحة
-            if (Math.abs(x) > 380 || Math.abs(z) > 380) return true;
-
-            // التصادم مع المباني
-            const tankRadius = 3.5;
-            for (const building of buildings) {
-                const bbox = new THREE.Box3().setFromObject(building);
-                const half = bbox.getSize(new THREE.Vector3()).multiplyScalar(0.5);
-
-                const dx = Math.abs(x - building.position.x);
-                const dz = Math.abs(z - building.position.z);
-
-                if (dx < half.x + tankRadius && dz < half.z + tankRadius) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        // ============================================================
-        // 💥 إطلاق الرصاصة
-        // ============================================================
-        function fireBullet() {
-            if (!playerTank) return;
-
-            // تحديد اتجاه الرصاصة من المدفع
-            const turret = playerTank.getObjectByName('turret');
-            const barrel = playerTank.getObjectByName('barrel');
-
-            let direction = new THREE.Vector3(0, 0, 1);
-
-            if (turret && barrel) {
-                // اتجاه البرج + المدفع
-                const turretQuat = new THREE.Quaternion().setFromUnitVectors(
-                    new THREE.Vector3(0, 0, 1),
-                    new THREE.Vector3(0, 0, 1).applyQuaternion(turret.quaternion)
-                );
-                direction.applyQuaternion(turretQuat);
-                direction.applyQuaternion(playerTank.quaternion);
-            } else {
-                direction.applyQuaternion(playerTank.quaternion);
-            }
-
-            direction.normalize();
-
-            // موقع الرصاصة (فوهة المدفع)
-            let startPos = playerTank.position.clone();
-            startPos.y += 1.8;
-
-            if (barrel) {
-                const barrelEnd = new THREE.Vector3(0, 0, 5.2);
-                barrelEnd.applyQuaternion(barrel.quaternion);
-                barrelEnd.applyQuaternion(turret ? turret.quaternion : new THREE.Quaternion());
-                barrelEnd.applyQuaternion(playerTank.quaternion);
-                startPos.add(barrelEnd);
-            } else {
-                startPos.add(direction.clone().multiplyScalar(5));
-            }
-
-            // إنشاء الرصاصة
-            const bulletMat = new THREE.MeshStandardMaterial({
-                color: 0xff8844,
-                emissive: 0xff4422,
-                emissiveIntensity: 0.8,
-                roughness: 0.3,
-                metalness: 0.7,
-            });
-
-            const bullet = new THREE.Mesh(
-                new THREE.SphereGeometry(0.3, 12, 12),
-                bulletMat
-            );
-            bullet.position.copy(startPos);
-            bullet.userData = {
-                velocity: direction.clone().multiplyScalar(2.8),
-                life: 150,
-                ownerId: TELEGRAM_ID,
-                bulletId: Date.now() + Math.random(),
-                trail: [],
-            };
-            bullet.castShadow = true;
-
-            // تأثير ضوء حول الرصاصة
-            const light = new THREE.PointLight(0xff4422, 1, 5);
-            bullet.add(light);
-
-            scene.add(bullet);
-            bullets.push(bullet);
-
-            // صوت الإطلاق
-            playShotSound();
-
-            // اهتزاز الكاميرا
-            cameraShake = 0.3;
-
-            // إرسال إلى الخادم
-            socket.emit('shoot', {
-                position: {
-                    x: startPos.x,
-                    y: startPos.y,
-                    z: startPos.z,
-                },
-                direction: {
-                    x: direction.x,
-                    y: direction.y,
-                    z: direction.z,
-                },
-                bulletId: bullet.userData.bulletId,
-            });
-        }
-
-        // ============================================================
-        // 🌐 رصاصة عن بعد
-        // ============================================================
-        function createRemoteBullet(data) {
-            const direction = new THREE.Vector3(data.direction.x, data.direction.y, data.direction.z);
-
-            const bulletMat = new THREE.MeshStandardMaterial({
-                color: 0xff8844,
-                emissive: 0xff4422,
-                emissiveIntensity: 0.6,
-                roughness: 0.3,
-                metalness: 0.7,
-            });
-
-            const bullet = new THREE.Mesh(
-                new THREE.SphereGeometry(0.3, 12, 12),
-                bulletMat
-            );
-            bullet.position.set(data.position.x, data.position.y, data.position.z);
-            bullet.userData = {
-                velocity: direction.clone().multiplyScalar(2.8),
-                life: 150,
-                ownerId: data.userId,
-                bulletId: data.bulletId,
-                isRemote: true,
-            };
-            bullet.castShadow = true;
-
-            scene.add(bullet);
-            bullets.push(bullet);
-        }
-
-        // ============================================================
-        // 💥 انفجار
-        // ============================================================
-        function createExplosion(position, size = 1.5) {
-            // ============================================================
-            // جسيمات الانفجار
-            // ============================================================
-            const particleCount = 60 + Math.floor(Math.random() * 40);
-            const colors = [0xff8844, 0xff4422, 0xffaa66, 0xffcc88, 0xcc4422];
-
-            for (let i = 0; i < particleCount; i++) {
-                const color = colors[Math.floor(Math.random() * colors.length)];
-                const mat = new THREE.MeshStandardMaterial({
-                    color: color,
-                    emissive: 0xff4422,
-                    emissiveIntensity: 0.5,
-                    roughness: 0.5,
-                });
-
-                const size_p = 0.1 + Math.random() * 0.4;
-                const particle = new THREE.Mesh(
-                    new THREE.SphereGeometry(size_p, 6, 6),
-                    mat
-                );
-                particle.position.copy(position);
-                particle.position.y += Math.random() * 0.5;
-
-                const speed = 1 + Math.random() * 3;
-                const theta = Math.random() * Math.PI * 2;
-                const phi = Math.random() * Math.PI;
-
-                particle.userData = {
-                    vel: new THREE.Vector3(
-                        Math.sin(theta) * Math.cos(phi) * speed,
-                        Math.sin(phi) * speed * 0.5 + 1,
-                        Math.cos(theta) * Math.cos(phi) * speed
-                    ),
-                    life: 0.6 + Math.random() * 0.6,
-                    gravity: 0.05 + Math.random() * 0.05,
-                };
-
-                scene.add(particle);
-                particles.push(particle);
-            }
-
-            // ============================================================
-            // جسيمات الدخان
-            // ============================================================
-            const smokeMat = new THREE.MeshStandardMaterial({
-                color: 0x886666,
-                emissive: 0x442222,
-                emissiveIntensity: 0.2,
-                transparent: true,
-                opacity: 0.6,
-                roughness: 0.9,
-            });
-
-            for (let i = 0; i < 15; i++) {
-                const smoke = new THREE.Mesh(
-                    new THREE.SphereGeometry(0.2 + Math.random() * 0.6, 8, 8),
-                    smokeMat
-                );
-                smoke.position.copy(position);
-                smoke.position.y += Math.random() * 0.5;
-
-                const speed = 0.3 + Math.random() * 0.6;
-                const theta = Math.random() * Math.PI * 2;
-                const phi = Math.random() * Math.PI * 0.5;
-
-                smoke.userData = {
-                    vel: new THREE.Vector3(
-                        Math.sin(theta) * Math.cos(phi) * speed,
-                        Math.sin(phi) * speed * 0.3 + 0.3,
-                        Math.cos(theta) * Math.cos(phi) * speed
-                    ),
-                    life: 1.2 + Math.random() * 0.8,
-                    scale: 1,
-                };
-
-                scene.add(smoke);
-                particles.push(smoke);
-            }
-
-            // ============================================================
-            // وميض الضوء
-            // ============================================================
-            const flash = new THREE.Mesh(
-                new THREE.SphereGeometry(size * 0.5, 12, 12),
-                new THREE.MeshBasicMaterial({
-                    color: 0xffaa66,
-                    transparent: true,
-                    opacity: 0.8,
                 })
-            );
-            flash.position.copy(position);
-            scene.add(flash);
-
-            setTimeout(() => {
-                scene.remove(flash);
-            }, 200);
-
-            // ============================================================
-            // ضوء الانفجار
-            // ============================================================
-            const explosionLight = new THREE.PointLight(0xff4422, 3, 20);
-            explosionLight.position.copy(position);
-            scene.add(explosionLight);
-
-            setTimeout(() => {
-                scene.remove(explosionLight);
-            }, 500);
-
-            // ============================================================
-            // صوت الانفجار
-            // ============================================================
-            const dist = playerTank ? position.distanceTo(playerTank.position) : 30;
-            playExplosionSound(dist);
-
-            // اهتزاز الكاميرا
-            if (dist < 30) {
-                cameraShake = Math.min(1.5, 1.5 - dist / 30);
-            }
-        }
-
-        // ============================================================
-        // 🗑️ تحديث الجسيمات
-        // ============================================================
-        function updateParticles() {
-            for (let i = particles.length - 1; i >= 0; i--) {
-                const p = particles[i];
-                p.userData.life -= 0.016;
-
-                if (p.userData.life <= 0) {
-                    scene.remove(p);
-                    particles.splice(i, 1);
-                } else {
-                    p.position.x += p.userData.vel.x * 0.016;
-                    p.position.z += p.userData.vel.z * 0.016;
-                    p.position.y += p.userData.vel.y * 0.016;
-
-                    if (p.userData.gravity) {
-                        p.userData.vel.y -= p.userData.gravity * 0.016;
-                    }
-
-                    if (p.userData.scale) {
-                        p.userData.scale += 0.02;
-                        p.scale.setScalar(p.userData.scale);
-                        p.material.opacity = p.userData.life * 0.6;
-                    }
-
-                    if (p.material.emissiveIntensity !== undefined) {
-                        p.material.emissiveIntensity = p.userData.life * 1.5;
-                    }
-
-                    const scale = p.userData.life * 1.5;
-                    p.scale.setScalar(Math.max(0.1, scale));
-                }
-            }
-        }
-
-        // ============================================================
-        // 🔄 تحديث اللاعبين الآخرين
-        // ============================================================
-        function updateOtherPlayer(data) {
-            const tank = otherTanks.get(data.userId);
-            if (tank) {
-                // تنعيم الحركة
-                tank.position.x += (data.position.x - tank.position.x) * 0.25;
-                tank.position.z += (data.position.z - tank.position.z) * 0.25;
-
-                if (data.rotation !== undefined) {
-                    let diff = data.rotation - tank.rotation.y;
-                    while (diff > Math.PI) diff -= Math.PI * 2;
-                    while (diff < -Math.PI) diff += Math.PI * 2;
-                    tank.rotation.y += diff * 0.2;
-                }
-
-                if (data.health !== undefined) {
-                    tank.userData.health = data.health;
-                }
-            }
-        }
-
-        // ============================================================
-        // ❤️ تحديث صحة الدبابة
-        // ============================================================
-        function updateTankHealth(userId, health) {
-            const tank = otherTanks.get(userId);
-            if (tank) {
-                tank.userData.health = health;
-                if (health <= 0) {
-                    removeTank(userId);
-                }
-            }
-        }
-
-        // ============================================================
-        // 🗑️ إزالة دبابة
-        // ============================================================
-        function removeTank(userId) {
-            const tank = otherTanks.get(userId);
-            if (tank) {
-                createExplosion(tank.position, 2.0);
-                scene.remove(tank);
-                otherTanks.delete(userId);
-                updateTeamCounts();
-            }
-        }
-
-        // ============================================================
-        // 📊 تحديث أعداد الفرق
-        // ============================================================
-        function updateTeamCounts() {
-            let team1 = 0,
-                team2 = 0;
-
-            // دبابة اللاعب
-            if (playerTank && gameState.isAlive) {
-                if (gameState.team === 1) team1++;
-                else team2++;
-            }
-
-            // الدبابات الأخرى
-            for (const [id, tank] of otherTanks) {
-                if (tank.userData.health > 0) {
-                    if (tank.userData.team === 1) team1++;
-                    else team2++;
-                }
-            }
-
-            document.getElementById('myTeamCount').textContent = team1;
-            document.getElementById('enemyTeamCount').textContent = team2;
-        }
-
-        // ============================================================
-        // 💀 رسالة الإقصاء
-        // ============================================================
-        function showEliminationMessage(message, killerName) {
-            const el = document.createElement('div');
-            el.className = 'elimination-message';
-            el.innerHTML = `
-                ${message}
-                <div class="sub">${killerName ? 'بواسطة: ' + killerName : ''}</div>
-            `;
-            document.body.appendChild(el);
-
-            setTimeout(() => {
-                el.remove();
-            }, 3500);
-        }
-
-        // ============================================================
-        // 📊 شاشة التقرير
-        // ============================================================
-        function showReport(data) {
-            const screen = document.getElementById('reportScreen');
-            const icon = document.getElementById('reportIcon');
-            const title = document.getElementById('reportTitle');
-            const subtitle = document.getElementById('reportSubtitle');
-            const team = document.getElementById('reportTeam');
-            const reward = document.getElementById('reportReward');
-            const kills = document.getElementById('reportKills');
-            const deaths = document.getElementById('reportDeaths');
-
-            const isWinner = data.isWinner || false;
-            const rewardAmount = data.reward || 0;
-
-            icon.textContent = isWinner ? '🏆' : '💀';
-            title.textContent = isWinner ? '🎉 انتصار!' : '💀 هزيمة!';
-            subtitle.textContent = isWinner ? 'أحسنت! انتصرت في المعركة' : 'حظاً أوفر في المرة القادمة';
-
-            team.textContent = data.yourTeam || 'الفريق الأول';
-            team.style.color = isWinner ? '#2ecc71' : '#e74c3c';
-
-            reward.textContent = rewardAmount > 0 ? `+${rewardAmount}$` : '0$';
-            kills.textContent = data.kills || gameState.kills || 0;
-            deaths.textContent = data.deaths || gameState.deaths || 0;
-
-            screen.style.display = 'flex';
-
-            // زر العودة
-            document.getElementById('reportBtn').onclick = () => {
-                screen.style.display = 'none';
-                socket.emit('game_cleanup', {});
-                window.location.reload();
-            };
-
-            // تحديث الرصيد
-            if (data.yourBalance) {
-                gameState.balance = data.yourBalance;
-                document.getElementById('gameBalance').textContent = data.yourBalance + '$';
-            }
-        }
-
-        // ============================================================
-        // 📐 تغيير حجم النافذة
-        // ============================================================
-        function onResize() {
-            const width = window.innerWidth;
-            const height = window.innerHeight;
-
-            if (camera) {
-                camera.aspect = width / height;
-                camera.updateProjectionMatrix();
-            }
-
-            if (renderer) {
-                renderer.setSize(width, height);
-            }
-
-            if (composer) {
-                composer.setSize(width, height);
-            }
-        }
-
-        // ============================================================
-        // 🔄 حلقة اللعبة (Animation Loop)
-        // ============================================================
-        function animate() {
-            requestAnimationFrame(animate);
-
-            const delta = clock.getDelta();
-
-            // ============================================================
-            // تحديث الرصاصات
-            // ============================================================
-            for (let i = bullets.length - 1; i >= 0; i--) {
-                const b = bullets[i];
-                b.position.add(b.userData.velocity.clone().multiplyScalar(delta * 60));
-
-                // تأثير توهج الرصاصة
-                if (b.children.length > 0 && b.children[0] instanceof THREE.PointLight) {
-                    b.children[0].intensity = 0.5 + Math.random() * 0.5;
-                }
-
-                b.userData.life -= delta * 60;
-
-                // التحقق من التصادم مع المباني
-                let hit = false;
-                for (const building of buildings) {
-                    const bbox = new THREE.Box3().setFromObject(building);
-                    const bboxB = new THREE.Box3().setFromObject(b);
-                    if (bbox.intersectsBox(bboxB)) {
-                        hit = true;
-                        createExplosion(b.position);
-                        scene.remove(b);
-                        bullets.splice(i, 1);
-                        break;
-                    }
-                }
-
-                if (!hit && (b.userData.life < 0 || Math.abs(b.position.x) > 400 || Math.abs(b.position.z) > 400)) {
-                    scene.remove(b);
-                    bullets.splice(i, 1);
-                }
-
-                // التحقق من التصادم مع الدبابات الأخرى (للرصاصات المحلية)
-                if (!hit && !b.userData.isRemote && b.userData.ownerId === TELEGRAM_ID) {
-                    for (const [id, tank] of otherTanks) {
-                        if (tank.userData.health > 0) {
-                            const dist = b.position.distanceTo(tank.position);
-                            if (dist < 2.5) {
-                                hit = true;
-                                createExplosion(b.position);
-                                scene.remove(b);
-                                bullets.splice(i, 1);
-
-                                // إرسال حدث الضرر
-                                socket.emit('damage', {
-                                    targetId: id,
-                                    damage: 100,
-                                    position: {
-                                        x: b.position.x,
-                                        y: b.position.y,
-                                        z: b.position.z,
-                                    },
-                                });
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ============================================================
-            // تحديث الجسيمات
-            // ============================================================
-            updateParticles();
-
-            // ============================================================
-            // تحديث الكاميرا
-            // ============================================================
-            if (gameState.gameActive && !gameState.isEliminated) {
-                updateCamera();
-            }
-
-            // ============================================================
-            // تحديث حركة الدبابات الأخرى (تنعيم)
-            // ============================================================
-            for (const [id, tank] of otherTanks) {
-                if (tank.userData.targetPosition) {
-                    tank.position.x += (tank.userData.targetPosition.x - tank.position.x) * 0.15;
-                    tank.position.z += (tank.userData.targetPosition.z - tank.position.z) * 0.15;
-                }
-                if (tank.userData.targetRotation !== undefined) {
-                    let diff = tank.userData.targetRotation - tank.rotation.y;
-                    while (diff > Math.PI) diff -= Math.PI * 2;
-                    while (diff < -Math.PI) diff += Math.PI * 2;
-                    tank.rotation.y += diff * 0.15;
-                }
-            }
-
-            // ============================================================
-            // تحديث عجلات الدبابات (تأثير دوران)
-            // ============================================================
-            if (playerTank) {
-                const speed = Math.abs(joystick.y) * 0.15;
-                playerTank.children.forEach(child => {
-                    if (child.geometry && child.geometry.type === 'CylinderGeometry' && child.position.z !== 0) {
-                        child.rotation.x += speed;
-                    }
+                .catch(err => {
+                    console.error('Error loading seats:', err);
+                    showStatus('❌ خطأ في تحميل المقاعد', 'error');
                 });
-            }
+        }
 
-            // ============================================================
-            // تقديم المشهد
-            // ============================================================
-            if (composer) {
-                composer.render();
-            } else if (renderer) {
-                renderer.render(scene, camera);
+        // ============================================
+        // 🪑 عرض المقاعد
+        // ============================================
+        function displaySeats(room) {
+            const section = document.getElementById('seatsSection');
+            section.classList.add('visible');
+            
+            document.getElementById('selectedRoomTitle').textContent = `🪑 ${room.name}`;
+            document.getElementById('seatsPlayersCount').textContent = room.players || 0;
+            document.getElementById('seatsMaxPlayers').textContent = room.maxSeats || 0;
+            document.getElementById('seatsPrice').textContent = room.seatPrice || 0;
+            document.getElementById('seatsNeeded').textContent = room.needed || room.maxSeats - (room.players || 0);
+
+            const grid = document.getElementById('seatsGrid');
+            const maxSeats = room.maxSeats || 4;
+            const players = room.players || 0;
+            
+            // معرف المستخدم الحالي
+            const telegramId = getTelegramId();
+            const isAdmin = telegramId === ADMIN_TELEGRAM_ID;
+
+            grid.innerHTML = '';
+            for (let i = 0; i < maxSeats; i++) {
+                const isOccupied = i < players;
+                const isMine = isOccupied && i === 0; // سيتم تحسينه لاحقاً مع بيانات حقيقية
+                
+                const seat = document.createElement('div');
+                seat.className = `seat ${isOccupied ? (isMine ? 'mine' : 'occupied') : 'empty'}`;
+                
+                if (!isOccupied) {
+                    seat.onclick = () => joinSeat(room.id, i);
+                }
+                
+                seat.innerHTML = `
+                    <div class="seat-number">${i + 1}</div>
+                    <div class="seat-status">${isOccupied ? (isMine ? '👤 أنت' : '🔴 محجوز') : '🟢 فارغ'}</div>
+                    ${isOccupied && !isMine ? `<div class="player-name">لاعب ${i + 1}</div>` : ''}
+                `;
+                
+                grid.appendChild(seat);
+            }
+            
+            // إظهار زر مغادرة الغرفة إذا كان المستخدم في الغرفة
+            document.getElementById('leaveRoomBtn').style.display = isInRoom ? 'inline-block' : 'none';
+            
+            // تمرير إلى المقاعد
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // ============================================
+        // 💺 الانضمام إلى مقعد
+        // ============================================
+        function joinSeat(roomId, seatIndex) {
+            if (isInRoom) {
+                showStatus('⚠️ أنت بالفعل في هذه الغرفة', 'error');
+                return;
+            }
+            
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            socket.emit('join_room', { roomId });
+        }
+
+        // ============================================
+        // 🚪 مغادرة الغرفة
+        // ============================================
+        function leaveRoom() {
+            if (!isInRoom) {
+                showStatus('⚠️ أنت لست في أي غرفة', 'error');
+                return;
+            }
+            
+            if (confirm('⚠️ هل أنت متأكد من مغادرة الغرفة؟ سيتم إعادة رصيدك.')) {
+                document.getElementById('loadingOverlay').style.display = 'flex';
+                socket.emit('leave_room');
             }
         }
 
-        // ============================================================
-        // 🛑 التعامل مع الانقطاع
-        // ============================================================
-        socket.on('disconnect', () => {
-            console.warn('⚠️ Disconnected from server. Reconnecting...');
-        });
-
-        socket.on('reconnect', () => {
-            console.log('🔄 Reconnected to server');
-            // إعادة المصادقة
-            if (gameState.token) {
-                socket.emit('auth', { telegramId: TELEGRAM_ID, token: gameState.token });
-            }
-        });
-
-        // ============================================================
-        // 🚀 تهيئة
-        // ============================================================
-        console.log('🎮 Battle Tanks Elite v6.0 - Game Engine Initialized');
-        console.log(`👤 Player: ${USERNAME} (${TELEGRAM_ID})`);
-        console.log('📡 Waiting for server connection...');
-
-        // إظهار شاشة التحميل
-        document.getElementById('loading').style.display = 'flex';
-        document.getElementById('loadProgress').style.width = '30%';
-
-        // محاكاة تقدم التحميل
-        let progress = 30;
-        const loadInterval = setInterval(() => {
-            progress += Math.random() * 5;
-            if (progress > 90) {
-                clearInterval(loadInterval);
-                document.getElementById('loadProgress').style.width = '100%';
-                setTimeout(() => {
-                    if (!gameState.gameActive) {
-                        document.getElementById('loading').style.display = 'none';
-                    }
-                }, 500);
+        // ============================================
+        // 🔄 تحديث المقاعد
+        // ============================================
+        function refreshSeats() {
+            if (currentRoomId) {
+                loadSeats(currentRoomId);
+                showStatus('🔄 تم تحديث المقاعد', 'info');
             } else {
-                document.getElementById('loadProgress').style.width = progress + '%';
+                loadRooms();
             }
-        }, 200);
-    </script>
+        }
 
+        // ============================================
+        // ❌ إغلاق المقاعد
+        // ============================================
+        function closeSeats() {
+            document.getElementById('seatsSection').classList.remove('visible');
+            selectedRoomId = null;
+            if (!isInRoom) {
+                currentRoomId = null;
+            }
+        }
+
+        // ============================================
+        // 📊 عرض رسالة الحالة
+        // ============================================
+        function showStatus(message, type = 'info') {
+            const el = document.getElementById('statusMessage');
+            el.textContent = message;
+            el.className = `status-message ${type}`;
+            
+            if (type !== 'error') {
+                setTimeout(() => {
+                    el.className = 'status-message';
+                }, 5000);
+            }
+        }
+
+        // ============================================
+        // 🚫 عرض خطأ
+        // ============================================
+        function showError(message) {
+            document.getElementById('errorScreen').style.display = 'flex';
+            document.getElementById('errorScreen').querySelector('p').textContent = message;
+            document.getElementById('mainContainer').style.display = 'none';
+        }
+
+        // ============================================
+        // 🚀 تهيئة الصفحة
+        // ============================================
+        async function init() {
+            const telegramId = getTelegramId();
+            
+            if (!telegramId) {
+                showError('لم يتم العثور على معرف المستخدم. يرجى تسجيل الدخول عبر تيليغرام.');
+                return;
+            }
+
+            // التحقق من صلاحيات المشرف (للإظهار فقط)
+            const isAdmin = telegramId === ADMIN_TELEGRAM_ID;
+            if (isAdmin) {
+                console.log('👑 Admin user detected');
+            }
+
+            document.getElementById('mainContainer').style.display = 'block';
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            
+            // الاتصال بالخادم
+            connectSocket(telegramId);
+            
+            // تحميل الغرف
+            setTimeout(() => {
+                if (socket) {
+                    socket.emit('join_lobby');
+                }
+            }, 500);
+        }
+
+        // ============================================
+        // 🚀 بدء التشغيل
+        // ============================================
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
 </body>
 </html>
