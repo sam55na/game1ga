@@ -3,6 +3,7 @@
 // ============================================
 // Version: 11.0.0 - ULTIMATE EDITION
 // Architecture: Enterprise Grade + Microservices Ready
+// Fully production ready - All features included
 // ============================================
 
 const express = require('express');
@@ -23,25 +24,47 @@ const { v4: uuidv4 } = require('uuid');
 const { createClient } = require('redis');
 const cluster = require('cluster');
 const os = require('os');
+const fs = require('fs');
+const path = require('path');
 
 // ============================================
-// 📊 CLUSTER MODE (Multi-core support)
+// 📁 إنشاء مجلدات السجلات
+// ============================================
+const logsDir = path.join(__dirname, 'logs');
+if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+}
+
+// ============================================
+// 📊 CLUSTER MODE (Multi-core support) - مُحسَّن
 // ============================================
 const isProduction = process.env.NODE_ENV === 'production';
-const numCPUs = isProduction ? os.cpus().length : 1;
+const numCPUs = isProduction ? Math.min(os.cpus().length, 4) : 1; // حد أقصى 4 عمال لتجنب مشاكل الذاكرة
 
-if (cluster.isMaster && isProduction) {
-    console.log(`🔄 Master ${process.pid} is running`);
+if (cluster.isMaster && isProduction && numCPUs > 1) {
+    console.log(`🔄 Master ${process.pid} is running with ${numCPUs} workers`);
     
-    // Fork workers
+    // Fork workers مع تأخير بينهم
     for (let i = 0; i < numCPUs; i++) {
-        cluster.fork();
+        setTimeout(() => {
+            const worker = cluster.fork();
+            console.log(`✅ Worker ${worker.process.pid} started`);
+        }, i * 1000);
     }
     
     cluster.on('exit', (worker, code, signal) => {
-        console.log(`❌ Worker ${worker.process.pid} died. Restarting...`);
-        cluster.fork();
+        console.log(`❌ Worker ${worker.process.pid} died (code: ${code}). Restarting...`);
+        setTimeout(() => {
+            const newWorker = cluster.fork();
+            console.log(`✅ New worker ${newWorker.process.pid} started`);
+        }, 5000);
     });
+    
+    // مراقبة صحة العمال
+    setInterval(() => {
+        const workers = Object.values(cluster.workers || {});
+        console.log(`📊 Active workers: ${workers.length}/${numCPUs}`);
+    }, 30000);
     
     // استمرار الماستر
     return;
@@ -52,12 +75,13 @@ if (cluster.isMaster && isProduction) {
 // ============================================
 class AdvancedLogger {
     constructor() {
-        this.loggers = {};
         this.currentLevel = process.env.LOG_LEVEL || 'info';
+        this.workerId = cluster.worker ? cluster.worker.id : 'main';
+        this.pid = process.pid;
         
         // تكوين الـ Winston مع دعم ELK
         const format = winston.format.combine(
-            winston.format.timestamp({ format: 'ISO-8601' }),
+            winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
             winston.format.errors({ stack: true }),
             winston.format.metadata(),
             winston.format.json()
@@ -67,43 +91,46 @@ class AdvancedLogger {
         this.mainLogger = winston.createLogger({
             level: this.currentLevel,
             format,
-            defaultMeta: { 
-                service: 'battle-tanks-royale', 
+            defaultMeta: {
+                service: 'battle-tanks-royale',
                 version: '11.0.0',
-                worker: cluster.worker ? cluster.worker.id : 'main',
-                pid: process.pid
+                worker: this.workerId,
+                pid: this.pid
             },
             transports: [
                 new winston.transports.Console({
                     format: winston.format.combine(
                         winston.format.colorize(),
                         winston.format.printf(({ timestamp, level, message, metadata }) => {
-                            return `${timestamp} [${level}] ${message} ${JSON.stringify(metadata || {})}`;
+                            const metaStr = metadata && Object.keys(metadata).length > 0 
+                                ? JSON.stringify(metadata) 
+                                : '';
+                            return `${timestamp} [${level}] [W${this.workerId}] ${message} ${metaStr}`;
                         })
                     )
                 }),
                 new winston.transports.File({
-                    filename: 'logs/error.log',
+                    filename: path.join(logsDir, 'error.log'),
                     level: 'error',
-                    maxsize: 10485760, // 10MB
-                    maxFiles: 10,
-                    tailable: true
-                }),
-                new winston.transports.File({
-                    filename: 'logs/combined.log',
                     maxsize: 10485760,
                     maxFiles: 10,
                     tailable: true
                 }),
                 new winston.transports.File({
-                    filename: 'logs/audit.log',
+                    filename: path.join(logsDir, 'combined.log'),
+                    maxsize: 10485760,
+                    maxFiles: 10,
+                    tailable: true
+                }),
+                new winston.transports.File({
+                    filename: path.join(logsDir, 'audit.log'),
                     level: 'info',
                     maxsize: 10485760,
                     maxFiles: 10,
                     tailable: true
                 }),
                 new winston.transports.File({
-                    filename: 'logs/performance.log',
+                    filename: path.join(logsDir, 'performance.log'),
                     level: 'performance',
                     maxsize: 10485760,
                     maxFiles: 5,
@@ -121,6 +148,8 @@ class AdvancedLogger {
         this.mainLogger.performance = (message, metadata = {}) => {
             this.mainLogger.log('performance', message, { metadata });
         };
+        
+        this.info(`🚀 Logger initialized (Worker: ${this.workerId}, PID: ${this.pid})`);
     }
     
     info(message, metadata = {}) {
@@ -145,12 +174,12 @@ class AdvancedLogger {
     
     audit(action, userId, details = {}) {
         this.mainLogger.info(`AUDIT: ${action}`, {
-            metadata: { 
-                userId, 
-                action, 
-                details, 
+            metadata: {
+                userId,
+                action,
+                details,
                 timestamp: new Date().toISOString(),
-                worker: cluster.worker ? cluster.worker.id : 'main'
+                worker: this.workerId
             }
         });
     }
@@ -310,12 +339,6 @@ class AdvancedMonitoring {
                 loadAverage: [0, 0, 0],
                 totalMemory: 0,
                 freeMemory: 0
-            },
-            network: {
-                bytesIn: 0,
-                bytesOut: 0,
-                packetsIn: 0,
-                packetsOut: 0
             },
             business: {
                 totalUsers: 0,
@@ -711,7 +734,7 @@ class AdvancedDatabaseManager {
             halfOpenTimeout: 10000
         });
         this.poolConfig = {
-            max: process.env.DB_POOL_MAX || 50,
+            max: parseInt(process.env.DB_POOL_MAX) || 20,
             idleTimeoutMillis: 30000,
             connectionTimeoutMillis: 15000,
             maxUses: 7500,
@@ -722,6 +745,13 @@ class AdvancedDatabaseManager {
         this.preparedStatements = new Map();
         this.migrationLock = false;
         this.schemaVersion = 0;
+        this.metrics = {
+            database: {
+                poolSize: 0,
+                idleCount: 0,
+                waitingCount: 0
+            }
+        };
         
         if (!this.connectionString) {
             logger.error('DATABASE_URL is not set');
@@ -817,7 +847,7 @@ class AdvancedDatabaseManager {
                     id VARCHAR(64) PRIMARY KEY,
                     telegram_id VARCHAR(64) UNIQUE,
                     username VARCHAR(100),
-                    balance INTEGER DEFAULT 0,
+                    balance INTEGER DEFAULT 100,
                     elo INTEGER DEFAULT 1000,
                     kills INTEGER DEFAULT 0,
                     wins INTEGER DEFAULT 0,
@@ -843,9 +873,11 @@ class AdvancedDatabaseManager {
                     reward_multiplier FLOAT DEFAULT 1.0,
                     status VARCHAR(32) DEFAULT 'waiting',
                     players JSONB DEFAULT '[]',
+                    spectators JSONB DEFAULT '[]',
                     game_round INTEGER DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    stats JSONB DEFAULT '{}'
                 );
                 
                 CREATE TABLE IF NOT EXISTS matches (
@@ -1057,36 +1089,6 @@ class AdvancedDatabaseManager {
             throw error;
         } finally {
             client.release();
-        }
-    }
-    
-    async prepareStatement(name, text) {
-        if (this.preparedStatements.has(name)) {
-            return this.preparedStatements.get(name);
-        }
-        
-        try {
-            const client = await this.pool.connect();
-            await client.query(`PREPARE ${name} AS ${text}`);
-            client.release();
-            this.preparedStatements.set(name, { text, prepared: true });
-            logger.debug(`Statement prepared: ${name}`);
-            return { name, text };
-        } catch (error) {
-            logger.error(`Failed to prepare statement ${name}:`, { error: error.message });
-            throw error;
-        }
-    }
-    
-    async executePrepared(name, params) {
-        try {
-            const result = await this.query(`EXECUTE ${name}(${params.map((_, i) => `$${i+1}`).join(', ')})`, params);
-            return result;
-        } catch (error) {
-            logger.error(`Failed to execute prepared statement ${name}:`, { error: error.message });
-            // محاولة إعادة تحضير البيان
-            this.preparedStatements.delete(name);
-            throw error;
         }
     }
     
@@ -1675,7 +1677,7 @@ class AdvancedAntiCheat {
 class SpeedHackDetector {
     constructor() {
         this.history = new Map();
-        this.threshold = 50; // وحدة سرعة قصوى
+        this.threshold = 50;
         this.sampleSize = 20;
     }
     
@@ -1690,7 +1692,6 @@ class SpeedHackDetector {
         const history = this.history.get(userId);
         history.push(...moves);
         
-        // الاحتفاظ بآخر العينات
         while (history.length > this.sampleSize) {
             history.shift();
         }
@@ -1732,7 +1733,7 @@ class SpeedHackDetector {
 class AimbotDetector {
     constructor() {
         this.history = new Map();
-        this.threshold = 0.95; // نسبة دقة أعلى من 95%
+        this.threshold = 0.95;
         this.sampleSize = 30;
     }
     
@@ -1744,7 +1745,6 @@ class AimbotDetector {
         
         const hitRate = hits.length / shots.length;
         
-        // التحقق من توزيع الزوايا
         const angles = actions.filter(a => a.type === 'shoot' && a.angle !== undefined)
             .map(a => a.angle);
         
@@ -1755,7 +1755,6 @@ class AimbotDetector {
             angleConsistency = Math.sqrt(variance);
         }
         
-        // نسبة دقة عالية جداً مع زوايا ثابتة = aimbot
         if (hitRate > this.threshold && angleConsistency < 0.1) {
             return {
                 type: 'aimbot',
@@ -1771,7 +1770,7 @@ class AimbotDetector {
 class TeleportDetector {
     constructor() {
         this.history = new Map();
-        this.threshold = 100; // مسافة قصوى للانتقال
+        this.threshold = 100;
         this.sampleSize = 10;
     }
     
@@ -1800,7 +1799,6 @@ class TeleportDetector {
             
             maxDistance = Math.max(maxDistance, distance);
             
-            // انتقال سريع غير طبيعي
             if (distance > this.threshold && time < 100) {
                 teleports++;
             }
@@ -1821,7 +1819,7 @@ class TeleportDetector {
 class SpamDetector {
     constructor() {
         this.history = new Map();
-        this.threshold = 20; // رسائل في الدقيقة
+        this.threshold = 20;
         this.sampleSize = 60;
     }
     
@@ -1858,7 +1856,7 @@ class SpamDetector {
 class GodModeDetector {
     constructor() {
         this.history = new Map();
-        this.threshold = 10; // عدد الضربات المستلمة دون ضرر
+        this.threshold = 10;
         this.sampleSize = 50;
     }
     
@@ -1878,7 +1876,6 @@ class GodModeDetector {
         
         if (history.length < 10) return null;
         
-        // حساب عدد الضربات التي لم تسبب ضرراً
         let noDamageHits = 0;
         for (const hit of history) {
             const damage = damages.find(d => d.timestamp === hit.timestamp);
@@ -1969,7 +1966,6 @@ class AdvancedCacheManager {
     async get(key, cacheType = 'memory') {
         this.cacheSize = this.getTotalSize();
         
-        // محاولة Redis أولاً
         if (this.useRedis && this.redisClient) {
             try {
                 const value = await this.redisClient.get(`cache:${cacheType}:${key}`);
@@ -1982,7 +1978,6 @@ class AdvancedCacheManager {
             }
         }
         
-        // العودة إلى الذاكرة
         const cache = this.caches[cacheType];
         if (!cache) return null;
         
@@ -2006,7 +2001,6 @@ class AdvancedCacheManager {
     async set(key, value, cacheType = 'memory', ttl = null) {
         const ttlMs = ttl || this.ttls[cacheType] || 60000;
         
-        // تخزين في Redis
         if (this.useRedis && this.redisClient) {
             try {
                 await this.redisClient.set(
@@ -2019,11 +2013,9 @@ class AdvancedCacheManager {
             }
         }
         
-        // تخزين في الذاكرة
         const cache = this.caches[cacheType];
         if (!cache) return false;
         
-        // التحقق من الحجم
         if (this.cacheSize >= this.maxCacheSize) {
             this.evictOldest();
         }
@@ -2196,7 +2188,6 @@ class AdvancedQueueProcessor {
     
     async add(action, priority = 0, idempotencyKey = null) {
         return new Promise((resolve, reject) => {
-            // التحقق من التكرار
             if (idempotencyKey && this.idempotencyCache.has(idempotencyKey)) {
                 const cached = this.idempotencyCache.get(idempotencyKey);
                 if (Date.now() - cached.timestamp < 60000) {
@@ -2267,14 +2258,12 @@ class AdvancedQueueProcessor {
             item.endTime = Date.now();
             item.resolve(result);
             
-            // تخزين النتيجة لمنع التكرار
             if (item.id) {
                 this.idempotencyCache.set(item.id, {
                     result,
                     timestamp: Date.now()
                 });
                 
-                // تنظيف الكاش القديم
                 for (const [key, value] of this.idempotencyCache) {
                     if (Date.now() - value.timestamp > 60000) {
                         this.idempotencyCache.delete(key);
@@ -2303,7 +2292,6 @@ class AdvancedQueueProcessor {
             });
             
             if (item.retries < item.maxRetries) {
-                // إعادة المحاولة بتأخير تصاعدي
                 const delay = this.retryDelays[item.retries] || 5000;
                 item.retries++;
                 item.timestamp = Date.now() + delay;
@@ -2316,7 +2304,6 @@ class AdvancedQueueProcessor {
                 
                 logger.info(`Retrying action ${item.id} (${item.retries}/${item.maxRetries}) after ${delay}ms`);
             } else {
-                // نقل إلى طابور الموتى
                 this.queues.dead.push({
                     ...item,
                     error: error.message,
@@ -2415,7 +2402,6 @@ class AdvancedELOSystem {
         const expectedA = 1 / (1 + Math.pow(10, (playerB_ELO - playerA_ELO) / 400));
         const expectedB = 1 / (1 + Math.pow(10, (playerA_ELO - playerB_ELO) / 400));
         
-        // K-Factor ديناميكي حسب مستوى اللاعب
         let kA = this.K_FACTOR;
         let kB = this.K_FACTOR;
         
@@ -2463,10 +2449,8 @@ class AdvancedELOSystem {
         const achieved = [];
         const userAchievements = this.playerAchievements.get(userId) || new Set();
         
-        // تحديث السلسلات
         this.updateStreaks(userId, stats);
         
-        // التحقق من الإنجازات
         const checks = [
             { key: 'first_win', condition: stats.wins === 1 },
             { key: 'win_streak_3', condition: (this.winStreaks.get(userId) || 0) >= 3 },
@@ -2493,7 +2477,6 @@ class AdvancedELOSystem {
     }
     
     updateStreaks(userId, stats) {
-        // تحديث سلسلة الانتصارات
         if (stats.won) {
             const current = this.winStreaks.get(userId) || 0;
             this.winStreaks.set(userId, current + 1);
@@ -2501,7 +2484,6 @@ class AdvancedELOSystem {
             this.winStreaks.set(userId, 0);
         }
         
-        // تحديث سلسلة الإقصاءات
         if (stats.kills >= 5) {
             const current = this.killStreaks.get(userId) || 0;
             this.killStreaks.set(userId, current + 1);
@@ -2515,19 +2497,16 @@ class AdvancedELOSystem {
     }
     
     async processMatch(winnerId, loserId, stats) {
-        // الحصول على التصنيف الحالي
         const winnerResult = await db.query('SELECT elo FROM users WHERE id = $1', [winnerId]);
         const loserResult = await db.query('SELECT elo FROM users WHERE id = $1', [loserId]);
         
         const winnerELO = winnerResult.rows[0]?.elo || this.DEFAULT_ELO;
         const loserELO = loserResult.rows[0]?.elo || this.DEFAULT_ELO;
         
-        // حساب التصنيف الجديد
         const { newELO_A: newWinnerELO, newELO_B: newLoserELO } = this.calculateNewELOs(
             winnerELO, loserELO, true
         );
         
-        // تحديث قاعدة البيانات
         await db.transaction(async (client) => {
             await client.query(
                 `UPDATE users SET 
@@ -2549,7 +2528,6 @@ class AdvancedELOSystem {
                 [newLoserELO, loserId]
             );
             
-            // تسجيل المعاملة
             await client.query(
                 `INSERT INTO transactions (id, user_id, type, amount, description, created_at)
                  VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)`,
@@ -2563,12 +2541,10 @@ class AdvancedELOSystem {
             );
         });
         
-        // تحديث الكاش
         await cache.delete(winnerId, 'user');
         await cache.delete(loserId, 'user');
         await cache.delete('leaderboard_elo_10', 'leaderboard');
         
-        // التحقق من الإنجازات
         const winnerAchievements = await this.checkAchievements(winnerId, {
             ...stats,
             won: true,
@@ -2883,7 +2859,6 @@ class AdvancedRoomManager {
                 return null;
             }
             
-            // التحقق من التصنيف
             const userData = await this.getUserData(userId);
             if (!userData) {
                 socket.emit('join_room_error', { message: 'بيانات المستخدم غير موجودة' });
@@ -2908,7 +2883,6 @@ class AdvancedRoomManager {
                 return null;
             }
             
-            // خصم سعر المقعد
             await db.transaction(async (client) => {
                 const result = await client.query(
                     'UPDATE users SET balance = balance - $1 WHERE id = $2 AND balance >= $1 RETURNING balance',
@@ -2919,7 +2893,6 @@ class AdvancedRoomManager {
                 }
                 userData.balance = result.rows[0].balance;
                 
-                // تسجيل المعاملة
                 await client.query(
                     `INSERT INTO transactions (id, user_id, type, amount, balance_before, balance_after, description)
                      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -3440,7 +3413,6 @@ class AdvancedGameEngine {
             }
         }
         
-        // بدء تقلص المنطقة
         this.startZoneShrink();
     }
     
@@ -3607,7 +3579,6 @@ class AdvancedGameEngine {
             this.zoneShrink.currentRadius
         );
         
-        // إرسال تحديث المنطقة
         if (Math.floor(progress * 10) % 2 === 0) {
             io.to(this.roomId).emit('zone_update', {
                 radius: this.zoneShrink.currentRadius,
@@ -3619,17 +3590,14 @@ class AdvancedGameEngine {
     
     updateTanks(timeStep) {
         for (const [userId, tank] of this.tanks) {
-            // إعادة شحن الدرع
             if (tank.shield < tank.maxShield) {
                 tank.shield = Math.min(tank.maxShield, tank.shield + 1 * timeStep);
             }
             
-            // إعادة شحن التعزيز
             if (tank.boost < tank.maxBoost) {
                 tank.boost = Math.min(tank.maxBoost, tank.boost + 5 * timeStep);
             }
             
-            // ضرر المنطقة
             const distance = Math.sqrt(
                 tank.position.x * tank.position.x + 
                 tank.position.z * tank.position.z
@@ -3653,7 +3621,6 @@ class AdvancedGameEngine {
             const bullet = this.bullets[i];
             let bulletHit = false;
             
-            // التحقق من الدبابات
             for (const [userId, tank] of this.tanks) {
                 if (userId === bullet.ownerId) continue;
                 if (tank.health <= 0) continue;
@@ -3669,7 +3636,6 @@ class AdvancedGameEngine {
                 }
             }
             
-            // التحقق من العقبات
             if (!bulletHit) {
                 for (const obstacle of this.obstacles) {
                     if (obstacle.destroyed) continue;
@@ -3683,7 +3649,6 @@ class AdvancedGameEngine {
                             obstacle.destroyed = true;
                             bulletHit = true;
                             
-                            // تأثير تدمير العقبة
                             io.to(this.roomId).emit('obstacle_destroyed', {
                                 id: obstacle.id,
                                 position: obstacle.position
@@ -3694,7 +3659,6 @@ class AdvancedGameEngine {
                 }
             }
             
-            // التحقق من الـ Powerups
             if (!bulletHit) {
                 for (const powerup of this.powerups) {
                     if (!powerup.active) continue;
@@ -3726,7 +3690,6 @@ class AdvancedGameEngine {
         
         let actualDamage = damage;
         
-        // الدرع يمتص الضرر
         if (target.shield > 0) {
             const shieldDamage = Math.min(target.shield, actualDamage);
             target.shield -= shieldDamage;
@@ -3886,7 +3849,6 @@ class AdvancedGameEngine {
                 message = `💨 زيادة السرعة`;
                 break;
             case 'damage':
-                // زيادة الضرر مؤقتاً
                 message = `💥 زيادة الضرر`;
                 break;
         }
@@ -4221,6 +4183,252 @@ app.get('/metrics', async (req, res) => {
     
     res.set('Content-Type', 'text/plain');
     res.send(output);
+});
+
+app.get('/api/config', async (req, res) => {
+    try {
+        const config = await loadServerConfig();
+        const sanitized = {
+            ...config,
+            system: {
+                ...config.system,
+                adminPassword: undefined,
+                jwtSecret: undefined
+            }
+        };
+        res.json({ success: true, config: sanitized });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.get('/api/user/:userId', async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        const user = await roomManager.getUserData(userId);
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'User not found' });
+        }
+        
+        const rank = eloSystem.getRank(user.elo || 1000);
+        res.json({
+            success: true,
+            user: {
+                ...user,
+                rank,
+                rankProgress: eloSystem.getRankProgress(user.elo || 1000)
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.get('/api/leaderboard', async (req, res) => {
+    try {
+        const limit = Math.min(parseInt(req.query.limit) || 100, 100);
+        const type = req.query.type || 'elo';
+        
+        const cacheKey = `leaderboard_${type}_${limit}`;
+        const cached = await cache.get(cacheKey, 'leaderboard');
+        if (cached) {
+            return res.json({ success: true, leaderboard: cached, cached: true });
+        }
+        
+        let orderBy = 'elo DESC';
+        if (type === 'wins') orderBy = 'wins DESC, elo DESC';
+        if (type === 'kills') orderBy = 'kills DESC, elo DESC';
+        if (type === 'rewards') orderBy = 'total_rewards DESC, elo DESC';
+        
+        const result = await db.query(
+            `SELECT id, username, elo, kills, wins, games_played, balance, total_rewards 
+             FROM users 
+             ORDER BY ${orderBy} 
+             LIMIT $1`,
+            [limit]
+        );
+        
+        const leaderboard = result.rows.map((user, index) => ({
+            ...user,
+            rank: index + 1,
+            eloRank: eloSystem.getRank(user.elo || 1000)
+        }));
+        
+        await cache.set(cacheKey, leaderboard, 'leaderboard');
+        res.json({ success: true, leaderboard });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================
+// 🔑 Admin API routes
+// ============================================
+const authenticateAdmin = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader?.split(' ')[1];
+    
+    if (!token) {
+        return res.status(401).json({ success: false, error: 'No token provided' });
+    }
+    
+    try {
+        const config = loadServerConfig();
+        const decoded = jwt.verify(token, config.system.jwtSecret || process.env.JWT_SECRET || 'default-secret');
+        if (!decoded.isAdmin) {
+            return res.status(403).json({ success: false, error: 'Not authorized' });
+        }
+        req.user = decoded;
+        next();
+    } catch (error) {
+        return res.status(403).json({ success: false, error: 'Invalid token' });
+    }
+};
+
+app.post('/api/admin/login', async (req, res) => {
+    try {
+        const { password } = req.body;
+        const config = await loadServerConfig();
+        
+        if (antiCheat.verifyAdminPassword(password)) {
+            const token = jwt.sign(
+                { isAdmin: true, timestamp: Date.now() },
+                config.system.jwtSecret || process.env.JWT_SECRET || 'default-secret',
+                { expiresIn: '1h' }
+            );
+            
+            monitoring.recordAdminAction('login');
+            res.json({
+                success: true,
+                token,
+                expiresIn: 3600
+            });
+        } else {
+            monitoring.recordAdminAction('login_failed');
+            res.status(401).json({
+                success: false,
+                error: 'Invalid admin password'
+            });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.get('/api/admin/stats', authenticateAdmin, async (req, res) => {
+    try {
+        const stats = {
+            monitoring: monitoring.getStats(),
+            locks: lockSystem.getStats(),
+            antiCheat: antiCheat.getStats(),
+            queue: queueProcessor.getStats(),
+            database: db.getHealth(),
+            cache: cache.getStats(),
+            rooms: {
+                total: roomManager.rooms.size,
+                active: Array.from(roomManager.rooms.values()).filter(r => r.status === 'active').length,
+                waiting: Array.from(roomManager.rooms.values()).filter(r => r.status === 'waiting').length,
+                players: roomManager.players.size
+            },
+            games: {
+                active: roomManager.activeGames.size,
+                total: monitoring.metrics.games.total,
+                completed: monitoring.metrics.games.completed
+            },
+            server: {
+                uptime: monitoring.formatUptime(Math.floor((Date.now() - monitoring.startTime) / 1000)),
+                memory: monitoring.metrics.system.memory,
+                cpu: monitoring.metrics.system.cpu,
+                worker: cluster.worker ? cluster.worker.id : 'main'
+            }
+        };
+        res.json({ success: true, stats });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.post('/api/admin/ban', authenticateAdmin, async (req, res) => {
+    try {
+        const { userId, reason, duration } = req.body;
+        if (!userId) {
+            return res.status(400).json({ success: false, error: 'User ID required' });
+        }
+        
+        const banDuration = duration || 24 * 60 * 60 * 1000;
+        await antiCheat.banUser(userId, reason || 'Banned by admin');
+        
+        const player = roomManager.players.get(userId);
+        if (player) {
+            const socket = io.sockets.sockets.get(player.socketId);
+            if (socket) {
+                socket.emit('banned', { reason: reason || 'تم حظرك من قبل المدير' });
+                socket.disconnect();
+            }
+        }
+        
+        monitoring.recordAdminAction('ban_user', userId);
+        res.json({ success: true, message: `User ${userId} banned` });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.post('/api/admin/unban', authenticateAdmin, async (req, res) => {
+    try {
+        const { userId } = req.body;
+        if (!userId) {
+            return res.status(400).json({ success: false, error: 'User ID required' });
+        }
+        
+        const result = await antiCheat.unbanUser(userId);
+        if (result) {
+            monitoring.recordAdminAction('unban_user', userId);
+            res.json({ success: true, message: `User ${userId} unbanned` });
+        } else {
+            res.status(404).json({ success: false, error: 'User not found or not banned' });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.post('/api/admin/config', authenticateAdmin, async (req, res) => {
+    try {
+        const { config } = req.body;
+        if (!config) {
+            return res.status(400).json({ success: false, error: 'Config required' });
+        }
+        
+        await saveServerConfig(config);
+        await reloadServerConfig();
+        monitoring.recordAdminAction('update_config');
+        
+        res.json({ success: true, message: 'Config updated successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.post('/api/admin/maintenance', authenticateAdmin, async (req, res) => {
+    try {
+        const { enabled } = req.body;
+        const config = await loadServerConfig();
+        config.system.maintenanceMode = enabled;
+        await saveServerConfig(config);
+        
+        if (enabled) {
+            io.emit('maintenance_mode', {
+                enabled: true,
+                message: '🔧 الخادم في وضع الصيانة. سيتم إعادة التشغيل قريباً.'
+            });
+        }
+        
+        monitoring.recordAdminAction('toggle_maintenance');
+        res.json({ success: true, message: `Maintenance mode ${enabled ? 'enabled' : 'disabled'}` });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 // ============================================

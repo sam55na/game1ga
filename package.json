@@ -12,12 +12,7 @@
     "cluster": "NODE_ENV=production node server.js",
     "test": "jest --coverage",
     "lint": "eslint . --ext .js",
-    "format": "prettier --write .",
-    "db:migrate": "node scripts/migrate.js",
-    "db:seed": "node scripts/seed.js",
-    "db:reset": "node scripts/reset.js",
-    "logs": "tail -f logs/combined.log",
-    "clean": "rm -rf logs/*.log && rm -rf node_modules/.cache"
+    "format": "prettier --write ."
   },
   "dependencies": {
     "compression": "^1.7.4",
