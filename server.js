@@ -1,17 +1,16 @@
 // ============================================
-// 🚀 خادم Battle Tanks Royale - الإصدار النهائي المحسن
+// 🚀 خادم Battle Tanks Royale - الإصدار النهائي المتكامل
 // ============================================
-// Version: 8.1.0
-// Auth: Telegram ID based
+// Version: 9.0.0
+// Auth: Telegram ID based (URL Parameter)
 // Database: PostgreSQL (Neon) with DATABASE_URL env
 // Features: 
-//   - نظام قفل متقدم (Advanced Lock System)
-//   - طوابير معالجة (Processing Queues)
-//   - منع التكرار والغش
-//   - معالجة أخطاء متينة مع إعادة محاولة ذكية
-//   - إعادة محاولة تلقائية مع تأخير متزايد
+//   - نظام متين لمنع انقطاع الاتصال
+//   - إدارة مستخدمين متكاملة
+//   - نظام إدارة متقدم للآدمن
+//   - حماية متطورة ضد الهجمات
+//   - طوابير معالجة ذكية
 //   - نظام مراقبة وتحليل متقدم
-//   - صيانة ذاتية واسترداد تلقائي
 // ============================================
 
 const express = require('express');
@@ -33,7 +32,8 @@ class MonitoringSystem {
             games: { total: 0, active: 0, completed: 0 },
             errors: { total: 0, byType: {} },
             performance: { avgResponseTime: 0, maxResponseTime: 0 },
-            database: { connected: false, reconnectAttempts: 0, lastError: null }
+            database: { connected: false, reconnectAttempts: 0, lastError: null },
+            admin: { logins: 0, actions: 0 }
         };
         this.startTime = Date.now();
         this.requestTimestamps = [];
@@ -86,7 +86,6 @@ class MonitoringSystem {
         }
         this.metrics.errors.byType[errorType]++;
         
-        // تسجيل الخطأ للتحليل
         const errorLog = {
             type: errorType,
             timestamp: Date.now(),
@@ -109,6 +108,14 @@ class MonitoringSystem {
         }
     }
 
+    recordAdminAction(type) {
+        if (type === 'login') {
+            this.metrics.admin.logins++;
+        } else {
+            this.metrics.admin.actions++;
+        }
+    }
+
     recordGameStarted() {
         this.metrics.games.total++;
         this.metrics.games.active++;
@@ -125,7 +132,7 @@ class MonitoringSystem {
             ...this.metrics,
             uptime,
             uptimeFormatted: this.formatUptime(uptime),
-            errorLogs: this.errorLogs.slice(-10) // آخر 10 أخطاء
+            errorLogs: this.errorLogs.slice(-10)
         };
     }
 
@@ -275,7 +282,7 @@ class AdvancedLockSystem {
 }
 
 // ============================================
-// 🛡️ نظام منع التكرار والغش
+// 🛡️ نظام الحماية المتقدم
 // ============================================
 class AntiCheatSystem {
     constructor() {
@@ -284,11 +291,13 @@ class AntiCheatSystem {
             move: { max: 60, window: 1000 },
             shoot: { max: 2, window: 3000 },
             join: { max: 5, window: 10000 },
-            auth: { max: 3, window: 5000 }
+            auth: { max: 5, window: 5000 },
+            admin: { max: 5, window: 60000 }
         };
         this.suspiciousActivity = new Map();
         this.bannedUsers = new Set();
         this.enabled = true;
+        this.adminPassword = process.env.ADMIN_PASSWORD || 'Admin@2024#Battle';
     }
 
     checkRateLimit(userId, actionType) {
@@ -384,6 +393,10 @@ class AntiCheatSystem {
         return false;
     }
 
+    verifyAdminPassword(password) {
+        return password === this.adminPassword;
+    }
+
     getStats() {
         return {
             bannedUsers: this.bannedUsers.size,
@@ -402,7 +415,7 @@ app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Token']
 }));
 app.use(express.json({ limit: '10mb' }));
 
@@ -414,16 +427,17 @@ class DatabaseManager {
         this.pool = null;
         this.isConnected = false;
         this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = Infinity; // محاولة غير محدودة
+        this.maxReconnectAttempts = Infinity;
         this.reconnectDelay = 5000;
-        this.maxReconnectDelay = 60000; // 60 ثانية كحد أقصى
+        this.maxReconnectDelay = 60000;
         this.reconnectTimer = null;
         this.isReconnecting = false;
         this.connectionString = process.env.DATABASE_URL;
+        this.lastError = null;
+        this.pingInterval = null;
         
         if (!this.connectionString) {
             console.error('❌ DATABASE_URL environment variable is not set!');
-            // محاولة استخدام الرابط الافتراضي كحل أخير
             this.connectionString = 'postgresql://neondb_owner:npg_MSOwr97htVJu@ep-patient-dawn-awed2uh0-pooler.c-12.us-east-1.aws.neon.tech/neondb?sslmode=require';
         }
         
@@ -449,15 +463,15 @@ class DatabaseManager {
             this.pool = new Pool({
                 connectionString: this.connectionString,
                 ssl: { rejectUnauthorized: false },
-                max: 20,
+                max: 30,
                 idleTimeoutMillis: 30000,
-                connectionTimeoutMillis: 10000, // زيادة المهلة إلى 10 ثواني
+                connectionTimeoutMillis: 15000,
                 retryDelay: this.reconnectDelay,
             });
 
             // اختبار الاتصال مع مهلة
             const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('Connection timeout')), 15000);
+                setTimeout(() => reject(new Error('Connection timeout')), 20000);
             });
 
             const connectPromise = this.pool.connect();
@@ -467,8 +481,13 @@ class DatabaseManager {
             this.isConnected = true;
             this.reconnectAttempts = 0;
             this.isReconnecting = false;
-            this.reconnectDelay = 5000; // إعادة تعيين التأخير
+            this.reconnectDelay = 5000;
+            this.lastError = null;
             monitoring.recordDatabaseStatus(true);
+            
+            // بدء فحص الصحة الدوري
+            if (this.pingInterval) clearInterval(this.pingInterval);
+            this.pingInterval = setInterval(() => this.healthCheck(), 30000);
             
             console.log('✅ PostgreSQL connected successfully');
             return this.pool;
@@ -477,10 +496,31 @@ class DatabaseManager {
             console.error('❌ PostgreSQL connection failed:', error.message);
             this.isConnected = false;
             this.isReconnecting = false;
+            this.lastError = error.message;
             monitoring.recordDatabaseStatus(false, error.message);
             monitoring.recordError('database_connection_error', error.message);
             
             return this.handleReconnect();
+        }
+    }
+
+    async healthCheck() {
+        try {
+            if (this.pool) {
+                await this.pool.query('SELECT 1');
+                if (!this.isConnected) {
+                    console.log('✅ Database health check: recovered');
+                    this.isConnected = true;
+                    monitoring.recordDatabaseStatus(true);
+                }
+            }
+        } catch (error) {
+            if (this.isConnected) {
+                console.error('❌ Database health check failed:', error.message);
+                this.isConnected = false;
+                monitoring.recordDatabaseStatus(false, error.message);
+                this.handleReconnect();
+            }
         }
     }
 
@@ -490,7 +530,6 @@ class DatabaseManager {
         this.isReconnecting = true;
         this.reconnectAttempts++;
         
-        // تأخير متزايد مع حد أقصى
         const delay = Math.min(this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1), this.maxReconnectDelay);
         
         console.log(`🔄 Reconnecting attempt ${this.reconnectAttempts} in ${Math.round(delay/1000)}s...`);
@@ -507,7 +546,6 @@ class DatabaseManager {
                     resolve(this.pool);
                 } catch (error) {
                     console.error(`❌ Reconnection ${this.reconnectAttempts} failed:`, error.message);
-                    // استمرار المحاولة
                     this.isReconnecting = false;
                     this.handleReconnect().then(resolve);
                 }
@@ -516,7 +554,6 @@ class DatabaseManager {
     }
 
     async query(text, params) {
-        // انتظار الاتصال إذا لم يكن متصلاً
         if (!this.isConnected || !this.pool) {
             console.log('⏳ Waiting for database connection...');
             await this.connect();
@@ -527,7 +564,6 @@ class DatabaseManager {
         } catch (error) {
             console.error('Database query error:', error);
             
-            // أخطاء الاتصال - محاولة إعادة الاتصال
             if (error.code === 'ECONNRESET' || 
                 error.code === '57P01' || 
                 error.code === '08003' ||
@@ -577,7 +613,8 @@ class DatabaseManager {
             reconnectAttempts: this.reconnectAttempts,
             poolSize: this.pool ? this.pool.totalCount : 0,
             idleCount: this.pool ? this.pool.idleCount : 0,
-            waitingCount: this.pool ? this.pool.waitingCount : 0
+            waitingCount: this.pool ? this.pool.waitingCount : 0,
+            lastError: this.lastError
         };
     }
 }
@@ -598,7 +635,7 @@ const activeGames = new Map();
 const pendingReconnects = new Map();
 const leaderboardCache = new Map();
 const visualSettingsCache = new Map();
-const actionQueue = new Map();
+const userCache = new Map();
 
 // ============================================
 // 🔧 تهيئة قاعدة البيانات مع إعادة محاولة
@@ -615,7 +652,7 @@ async function initializeDatabase(retryCount = 0) {
                 first_name VARCHAR(100),
                 last_name VARCHAR(100),
                 photo_url TEXT,
-                balance DECIMAL(10,2) DEFAULT 100.00,
+                balance DECIMAL(10,2) DEFAULT 0,
                 elo INTEGER DEFAULT 1000,
                 kills INTEGER DEFAULT 0,
                 wins INTEGER DEFAULT 0,
@@ -637,6 +674,15 @@ async function initializeDatabase(retryCount = 0) {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS server_config (
                 key VARCHAR(100) PRIMARY KEY,
+                value JSONB NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS game_settings (
+                id SERIAL PRIMARY KEY,
+                setting_key VARCHAR(50) UNIQUE NOT NULL,
                 value JSONB NOT NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -713,15 +759,17 @@ async function initializeDatabase(retryCount = 0) {
             CREATE INDEX IF NOT EXISTS idx_processed_actions_action_id ON processed_actions(action_id);
         `);
 
-        // تهيئة الإعدادات البصرية
+        // تهيئة الإعدادات البصرية الافتراضية
         const defaultImages = [
+            { key: 'game_logo', url: '/images/default/logo.png', alt: 'شعار اللعبة' },
             { key: 'elimination', url: '/images/default/elimination.png', alt: 'تم إقصاؤك' },
             { key: 'kill', url: '/images/default/kill.png', alt: 'أقصيت لاعباً' },
             { key: 'winner', url: '/images/default/winner.png', alt: 'فائز' },
             { key: 'game_start', url: '/images/default/game_start.png', alt: 'بدء المعركة' },
             { key: 'game_end', url: '/images/default/game_end.png', alt: 'انتهت المعركة' },
             { key: 'level_up', url: '/images/default/level_up.png', alt: 'تقدم في المستوى' },
-            { key: 'achievement', url: '/images/default/achievement.png', alt: 'إنجاز جديد' }
+            { key: 'achievement', url: '/images/default/achievement.png', alt: 'إنجاز جديد' },
+            { key: 'profile_background', url: '/images/default/profile_bg.jpg', alt: 'خلفية الملف الشخصي' }
         ];
 
         for (const img of defaultImages) {
@@ -762,7 +810,12 @@ async function initializeDatabase(retryCount = 0) {
                 reconnectTimeout: 30000,
                 antiCheatEnabled: true,
                 maxLoginAttempts: 5,
-                lockTimeout: 30000
+                lockTimeout: 30000,
+                adminPassword: 'Admin@2024#Battle'
+            },
+            appearance: {
+                gameLogo: '/images/default/logo.png',
+                backgroundImage: '/images/default/background.jpg'
             }
         };
 
@@ -775,7 +828,9 @@ async function initializeDatabase(retryCount = 0) {
 
         console.log('✅ Database initialized successfully');
         
+        // تحميل الإعدادات
         await loadVisualSettings();
+        await loadGameSettings();
         await initializeRooms();
         
         return true;
@@ -792,6 +847,33 @@ async function initializeDatabase(retryCount = 0) {
         }
         
         throw error;
+    }
+}
+
+// ============================================
+// 🎮 تحميل إعدادات اللعبة
+// ============================================
+async function loadGameSettings() {
+    try {
+        const result = await pool.query(
+            "SELECT value FROM server_config WHERE key = 'server_config'"
+        );
+        const config = result.rows[0]?.value || {};
+        
+        // تحديث كلمة مرور الآدمن من المتغيرات البيئية
+        if (process.env.ADMIN_PASSWORD) {
+            config.system.adminPassword = process.env.ADMIN_PASSWORD;
+            await pool.query(
+                `UPDATE server_config SET value = $1 WHERE key = 'server_config'`,
+                [config]
+            );
+        }
+        
+        antiCheat.adminPassword = config.system.adminPassword || 'Admin@2024#Battle';
+        return config;
+    } catch (error) {
+        console.error('❌ Error loading game settings:', error);
+        return {};
     }
 }
 
@@ -898,7 +980,7 @@ class ActionQueueProcessor {
     constructor() {
         this.queue = [];
         this.processing = false;
-        this.maxConcurrent = 5;
+        this.maxConcurrent = 10;
         this.timeout = 30000;
         this.processedCount = 0;
         this.errorCount = 0;
@@ -1265,24 +1347,24 @@ class GamePhysics {
         return Math.round(seatPrice * percent * 100) / 100;
     }
 
-    async updateKillerBalance(killerId, reward) {
+    async updateKillerBalance(shooterId, reward) {
         try {
             const result = await pool.query(
                 'SELECT balance FROM users WHERE id = $1',
-                [killerId]
+                [shooterId]
             );
-            const currentBalance = result.rows[0]?.balance || 100;
+            const currentBalance = result.rows[0]?.balance || 0;
             
             await pool.query(
                 `UPDATE users SET 
                  balance = balance + $1,
                  kills = kills + 1
                  WHERE id = $2`,
-                [reward, killerId]
+                [reward, shooterId]
             );
 
             const killerSocket = io.sockets.sockets.get(
-                this.room.players.find(p => p.userId === killerId)?.socketId
+                this.room.players.find(p => p.userId === shooterId)?.socketId
             );
             if (killerSocket) {
                 const visualSettings = visualSettingsCache.get('kill') || {};
@@ -1441,7 +1523,7 @@ class GamePhysics {
                     [player.userId]
                 );
                 const userData = result.rows[0];
-                const currentBalance = userData?.balance || 100;
+                const currentBalance = userData?.balance || 0;
                 const currentELO = userData?.elo || 1000;
 
                 let reward = 0;
@@ -1452,7 +1534,7 @@ class GamePhysics {
                     eloChange = 15;
                 } else {
                     eloChange = -5;
-                    reward = 1;
+                    reward = 0;
                 }
 
                 const newELO = Math.max(1, currentELO + eloChange);
@@ -1502,7 +1584,6 @@ class GamePhysics {
         }, 50);
         monitoring.recordGameStarted();
         
-        // Ping للحفاظ على الاتصال
         this.pingInterval = setInterval(() => {
             io.to(this.roomId).emit('game_ping', { time: Date.now() });
         }, 5000);
@@ -1775,35 +1856,78 @@ async function startGame(roomId) {
 }
 
 // ============================================
+// 👤 دوال المستخدمين
+// ============================================
+async function getUserData(userId) {
+    try {
+        // التحقق من الكاش
+        if (userCache.has(userId)) {
+            const cached = userCache.get(userId);
+            if (Date.now() - cached.timestamp < 30000) {
+                return cached.data;
+            }
+        }
+        
+        const result = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+        if (result.rows.length === 0) {
+            // إنشاء مستخدم جديد
+            const newUser = {
+                id: userId,
+                telegram_id: userId,
+                username: `لاعب_${userId.slice(0, 6)}`,
+                balance: 0,
+                elo: 1000,
+                kills: 0,
+                wins: 0,
+                games_played: 0,
+                is_admin: userId === '7011476249' // الآدمن المحدد
+            };
+            
+            await pool.query(
+                `INSERT INTO users (id, telegram_id, username, balance, elo, is_admin, created_at, last_login)
+                 VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                [newUser.id, newUser.telegram_id, newUser.username, newUser.balance, newUser.elo, newUser.is_admin]
+            );
+            
+            userCache.set(userId, { data: newUser, timestamp: Date.now() });
+            return newUser;
+        }
+        
+        const user = result.rows[0];
+        userCache.set(userId, { data: user, timestamp: Date.now() });
+        return user;
+        
+    } catch (error) {
+        console.error('Error getting user data:', error);
+        throw error;
+    }
+}
+
+// ============================================
 // 🔌 أحداث Socket.io
 // ============================================
 io.on('connection', (socket) => {
     console.log(`🔌 New connection: ${socket.id}`);
     monitoring.recordConnection('connect');
     
-    players.set(socket.id, {
+    const playerData = {
         socketId: socket.id,
         userId: null,
-        telegramId: null,
         username: null,
-        firstName: null,
-        lastName: null,
-        photoUrl: null,
         roomId: null,
         isAdmin: false,
         balance: 0,
         elo: 1000,
         connectedAt: Date.now(),
-        lastShotTime: 0,
-        lastMoveTime: 0,
-        reconnectToken: crypto.randomBytes(32).toString('hex'),
         ipAddress: socket.handshake.address,
         deviceId: socket.handshake.query.deviceId || null,
         lastPing: Date.now()
-    });
+    };
+    
+    players.set(socket.id, playerData);
     
     // ============================================
-    // 🔐 المصادقة عبر Telegram ID
+    // 🔐 المصادقة عبر Telegram ID من الرابط
     // ============================================
     socket.on('auth', async (data) => {
         const startTime = Date.now();
@@ -1813,7 +1937,7 @@ io.on('connection', (socket) => {
         }, 15000);
         
         try {
-            const { telegramId, username, firstName, lastName, photoUrl, deviceId } = data;
+            const { telegramId } = data;
             
             if (!telegramId) {
                 clearTimeout(authTimeout);
@@ -1848,58 +1972,15 @@ io.on('connection', (socket) => {
                 return;
             }
             
+            // جلب بيانات المستخدم
+            const userData = await getUserData(telegramId);
+            
             const player = players.get(socket.id);
             if (player) {
-                player.telegramId = telegramId;
-                player.username = username || telegramId;
-                player.firstName = firstName || '';
-                player.lastName = lastName || '';
-                player.photoUrl = photoUrl || '';
-                if (deviceId) player.deviceId = deviceId;
-            }
-            
-            let userResult = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [telegramId]);
-            let userData = userResult.rows[0];
-            
-            const adminIds = ['admin_telegram_id_1', 'admin_telegram_id_2'];
-            const isAdmin = adminIds.includes(telegramId);
-            
-            if (!userData) {
-                await pool.query(
-                    `INSERT INTO users (
-                        id, telegram_id, username, first_name, last_name, photo_url, 
-                        balance, elo, is_admin, created_at, last_login, login_count
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $10)`,
-                    [telegramId, telegramId, username || telegramId, firstName || '', lastName || '', photoUrl || '',
-                     100, 1000, isAdmin, 1]
-                );
-                userResult = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [telegramId]);
-                userData = userResult.rows[0];
-                console.log(`🆕 New user created: ${telegramId} (${username || 'Unknown'})`);
-            } else {
-                await pool.query(
-                    `UPDATE users SET 
-                     username = COALESCE($1, username),
-                     first_name = COALESCE($2, first_name),
-                     last_name = COALESCE($3, last_name),
-                     photo_url = COALESCE($4, photo_url),
-                     last_login = CURRENT_TIMESTAMP,
-                     login_count = login_count + 1,
-                     last_ip = $5,
-                     device_id = COALESCE($6, device_id)
-                     WHERE telegram_id = $7`,
-                    [username || userData.username, firstName || userData.first_name, 
-                     lastName || userData.last_name, photoUrl || userData.photo_url,
-                     socket.handshake.address, deviceId, telegramId]
-                );
-                userResult = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [telegramId]);
-                userData = userResult.rows[0];
-            }
-            
-            if (player) {
                 player.userId = userData.id;
+                player.username = userData.username || `لاعب_${userData.id.slice(0, 6)}`;
                 player.isAdmin = userData.is_admin || false;
-                player.balance = userData.balance || 100;
+                player.balance = userData.balance || 0;
                 player.elo = userData.elo || 1000;
             }
             
@@ -1907,26 +1988,39 @@ io.on('connection', (socket) => {
             
             const rank = ELO.getRank(userData.elo || 1000);
             
+            // إرسال بيانات المستخدم
             socket.emit('auth_success', {
                 userId: userData.id,
-                telegramId: telegramId,
-                username: userData.username || username || telegramId,
-                firstName: userData.first_name,
-                lastName: userData.last_name,
-                photoUrl: userData.photo_url,
-                balance: userData.balance || 100,
+                telegramId: userData.telegram_id,
+                username: userData.username || `لاعب_${userData.id.slice(0, 6)}`,
+                balance: userData.balance || 0,
                 elo: userData.elo || 1000,
                 rank: rank,
                 kills: userData.kills || 0,
                 wins: userData.wins || 0,
                 gamesPlayed: userData.games_played || 0,
                 isAdmin: userData.is_admin || false,
-                reconnectToken: player?.reconnectToken || null,
                 timestamp: Date.now()
             });
             
-            console.log(`✅ Auth: ${telegramId} (${username || 'Unknown'}) - ELO: ${userData.elo || 1000}`);
+            // تحديث آخر تسجيل دخول
+            await pool.query(
+                'UPDATE users SET last_login = CURRENT_TIMESTAMP, login_count = login_count + 1 WHERE id = $1',
+                [userData.id]
+            );
+            
+            console.log(`✅ Auth: ${userData.id} (${userData.username})`);
             monitoring.recordRequest(true, Date.now() - startTime);
+            
+            // إرسال الإعدادات البصرية
+            const visualSettings = {};
+            for (const [key, value] of visualSettingsCache) {
+                visualSettings[key] = value;
+            }
+            socket.emit('visual_settings', visualSettings);
+            
+            // إرسال إعدادات الخادم
+            socket.emit('server_config', config);
             
         } catch (error) {
             clearTimeout(authTimeout);
@@ -1950,16 +2044,9 @@ io.on('connection', (socket) => {
         }
         
         try {
-            const result = await pool.query(
-                'SELECT balance, elo, is_admin, username FROM users WHERE id = $1',
-                [player.userId]
-            );
-            const userData = result.rows[0];
-            const balance = userData?.balance || 100;
-            const elo = userData?.elo || 1000;
-            
-            player.balance = balance;
-            player.elo = elo;
+            const userData = await getUserData(player.userId);
+            player.balance = userData.balance || 0;
+            player.elo = userData.elo || 1000;
             
             const config = await getServerConfig();
             
@@ -1969,16 +2056,17 @@ io.on('connection', (socket) => {
             }
             
             socket.emit('lobby_joined', {
-                balance: balance,
-                elo: elo,
-                rank: ELO.getRank(elo),
+                balance: userData.balance || 0,
+                elo: userData.elo || 1000,
+                rank: ELO.getRank(userData.elo || 1000),
                 userId: player.userId,
-                username: userData?.username || player.username || player.telegramId,
-                isAdmin: userData?.is_admin || false,
+                username: userData.username || `لاعب_${player.userId.slice(0, 6)}`,
+                isAdmin: userData.is_admin || false,
                 config: {
                     rooms: config.rooms || {},
                     game: config.game || {},
-                    system: config.system || {}
+                    system: config.system || {},
+                    appearance: config.appearance || {}
                 },
                 visualSettings: visualSettings,
                 serverTime: Date.now()
@@ -1987,7 +2075,7 @@ io.on('connection', (socket) => {
             broadcastRoomsList();
             broadcastLobbyInfo();
             
-            console.log(`🏠 ${player.telegramId} joined lobby`);
+            console.log(`🏠 ${player.userId} joined lobby`);
             monitoring.recordRequest(true, Date.now() - startTime);
             
         } catch (error) {
@@ -2051,6 +2139,7 @@ io.on('connection', (socket) => {
         try {
             await lockSystem.acquireLock(lockKey, player.userId, 5000);
             
+            // التحقق مرة أخرى بعد القفل
             if (room.status !== 'waiting') {
                 socket.emit('error', { message: 'Game already started' });
                 lockSystem.releaseLock(lockKey, player.userId);
@@ -2065,11 +2154,8 @@ io.on('connection', (socket) => {
                 return;
             }
             
-            const result = await pool.query(
-                'SELECT balance FROM users WHERE id = $1',
-                [player.userId]
-            );
-            const balance = result.rows[0]?.balance || 100;
+            const userData = await getUserData(player.userId);
+            const balance = userData.balance || 0;
             const seatPrice = room.seatPrice || 1;
             
             if (balance < seatPrice) {
@@ -2079,25 +2165,23 @@ io.on('connection', (socket) => {
                 return;
             }
             
-            await actionProcessor.add(async () => {
-                await pool.query(
-                    'UPDATE users SET balance = balance - $1 WHERE id = $2',
-                    [seatPrice, player.userId]
-                );
-            });
+            // خصم الرصيد
+            await pool.query(
+                'UPDATE users SET balance = balance - $1 WHERE id = $2',
+                [seatPrice, player.userId]
+            );
             
-            player.balance = balance - seatPrice;
+            const newBalance = balance - seatPrice;
+            player.balance = newBalance;
             
             const newPlayer = {
                 userId: player.userId,
                 socketId: socket.id,
-                telegramId: player.telegramId,
-                username: player.username || player.telegramId,
-                firstName: player.firstName || '',
-                balance: player.balance,
+                username: userData.username || `لاعب_${player.userId.slice(0, 6)}`,
+                balance: newBalance,
                 health: 100,
                 paidAmount: seatPrice,
-                elo: player.elo || 1000,
+                elo: userData.elo || 1000,
                 kills: 0,
                 joinedAt: Date.now()
             };
@@ -2111,32 +2195,37 @@ io.on('connection', (socket) => {
                 [JSON.stringify(room.players), room.id]
             );
             
-            const needed = room.maxSeats - room.players.length;
+            // إرسال تحديث المقاعد
             socket.emit('room_joined', {
                 roomId: roomId,
-                balance: balance - seatPrice,
+                balance: newBalance,
                 roomName: room.name,
                 playersCount: room.players.length,
                 maxSeats: room.maxSeats,
                 seatPrice: room.seatPrice,
-                needed: needed,
+                players: room.players.map(p => ({
+                    userId: p.userId,
+                    username: p.username || 'لاعب',
+                    isYou: p.userId === player.userId
+                })),
+                needed: room.maxSeats - room.players.length,
                 gameRound: room.gameRound || 1,
                 message: `✅ تم الانضمام إلى ${room.name}\n💰 تم خصم ${seatPrice}$\n👥 ${room.players.length}/${room.maxSeats} لاعب`
             });
             
             io.to(room.id).emit('player_joined', {
                 userId: player.userId,
-                username: player.username || player.telegramId,
+                username: userData.username || `لاعب_${player.userId.slice(0, 6)}`,
                 playersCount: room.players.length,
                 maxSeats: room.maxSeats,
-                elo: player.elo
+                elo: userData.elo || 1000
             });
             
             lockSystem.releaseLock(lockKey, player.userId);
             updateRoom(room.id);
             broadcastRoomsList();
             
-            console.log(`👥 ${player.telegramId} joined ${room.name} (${room.players.length}/${room.maxSeats})`);
+            console.log(`👥 ${player.userId} joined ${room.name} (${room.players.length}/${room.maxSeats})`);
             monitoring.recordRequest(true, Date.now() - startTime);
             
         } catch (error) {
@@ -2148,6 +2237,7 @@ io.on('connection', (socket) => {
         }
     });
     
+    // مغادرة الغرفة
     socket.on('leave_room', async () => {
         const startTime = Date.now();
         const player = players.get(socket.id);
@@ -2179,6 +2269,7 @@ io.on('connection', (socket) => {
                 const removed = room.players[index];
                 const refund = removed.paidAmount || room.seatPrice;
                 
+                // إعادة الرصيد
                 await pool.query(
                     'UPDATE users SET balance = balance + $1 WHERE id = $2',
                     [refund, player.userId]
@@ -2291,20 +2382,15 @@ io.on('connection', (socket) => {
         if (!player?.userId) return;
         
         try {
-            const result = await pool.query(
-                'SELECT * FROM users WHERE id = $1',
-                [player.userId]
-            );
-            const data = result.rows[0];
-            
+            const userData = await getUserData(player.userId);
             socket.emit('stats_update', {
-                balance: data?.balance || 100,
-                elo: data?.elo || 1000,
-                rank: ELO.getRank(data?.elo || 1000),
-                kills: data?.kills || 0,
-                wins: data?.wins || 0,
-                gamesPlayed: data?.games_played || 0,
-                totalRewards: data?.total_rewards || 0
+                balance: userData.balance || 0,
+                elo: userData.elo || 1000,
+                rank: ELO.getRank(userData.elo || 1000),
+                kills: userData.kills || 0,
+                wins: userData.wins || 0,
+                gamesPlayed: userData.games_played || 0,
+                totalRewards: userData.total_rewards || 0
             });
         } catch (error) {
             console.error('Error getting stats:', error);
@@ -2348,16 +2434,43 @@ io.on('connection', (socket) => {
     // ============================================
     // 🔧 أوامر المدير
     // ============================================
+    socket.on('admin_login', async (data) => {
+        const player = players.get(socket.id);
+        if (!player?.userId) return;
+        
+        try {
+            const userData = await getUserData(player.userId);
+            if (!userData.is_admin) {
+                socket.emit('admin_error', { message: 'غير مصرح لك بالدخول' });
+                return;
+            }
+            
+            const { password } = data;
+            if (!antiCheat.verifyAdminPassword(password)) {
+                socket.emit('admin_error', { message: 'كلمة مرور خاطئة' });
+                monitoring.recordAdminAction('login_failed');
+                return;
+            }
+            
+            socket.emit('admin_login_success', { message: 'تم تسجيل الدخول بنجاح' });
+            monitoring.recordAdminAction('login');
+            
+            // إرسال جميع البيانات الإدارية
+            await sendAdminData(socket);
+            
+        } catch (error) {
+            console.error('Admin login error:', error);
+            socket.emit('admin_error', { message: error.message });
+        }
+    });
+    
     socket.on('admin_command', async (data) => {
         const player = players.get(socket.id);
         if (!player?.userId) return;
         
         try {
-            const result = await pool.query(
-                'SELECT is_admin FROM users WHERE id = $1',
-                [player.userId]
-            );
-            if (!result.rows[0]?.is_admin) {
+            const userData = await getUserData(player.userId);
+            if (!userData.is_admin) {
                 socket.emit('admin_error', { message: 'Unauthorized' });
                 return;
             }
@@ -2370,19 +2483,21 @@ io.on('connection', (socket) => {
                     socket.emit('admin_config', config);
                     break;
                     
-                case 'get_monitoring':
-                    socket.emit('admin_monitoring', {
-                        monitoring: monitoring.getStats(),
-                        locks: lockSystem.getStats(),
-                        antiCheat: antiCheat.getStats(),
-                        queue: actionProcessor.getStats(),
-                        database: db.getHealth()
-                    });
-                    break;
-                    
                 case 'update_config':
                     const { section, key, value } = params;
                     if (section && key && value !== undefined) {
+                        if (section === 'system' && key === 'adminPassword') {
+                            // تحديث كلمة المرور
+                            antiCheat.adminPassword = value;
+                            if (process.env.ADMIN_PASSWORD) {
+                                // إذا كانت كلمة المرور من المتغيرات البيئية، لا نغيرها
+                                socket.emit('admin_message', {
+                                    message: '⚠️ كلمة المرور محددة في المتغيرات البيئية، لا يمكن تغييرها من هنا',
+                                    type: 'warning'
+                                });
+                                break;
+                            }
+                        }
                         config[section][key] = value;
                         await updateServerConfig(config);
                         socket.emit('admin_message', { 
@@ -2392,6 +2507,7 @@ io.on('connection', (socket) => {
                         if (section === 'rooms') {
                             await initializeRooms();
                         }
+                        monitoring.recordAdminAction('update_config');
                     }
                     break;
                     
@@ -2422,7 +2538,12 @@ io.on('connection', (socket) => {
                             reconnectTimeout: 30000,
                             antiCheatEnabled: true,
                             maxLoginAttempts: 5,
-                            lockTimeout: 30000
+                            lockTimeout: 30000,
+                            adminPassword: antiCheat.adminPassword
+                        },
+                        appearance: {
+                            gameLogo: '/images/default/logo.png',
+                            backgroundImage: '/images/default/background.jpg'
                         }
                     };
                     await updateServerConfig(defaultConfig);
@@ -2431,6 +2552,7 @@ io.on('connection', (socket) => {
                         message: '✅ تم إعادة تعيين الإعدادات',
                         type: 'success'
                     });
+                    monitoring.recordAdminAction('reset_config');
                     break;
                     
                 case 'toggle_maintenance':
@@ -2441,6 +2563,7 @@ io.on('connection', (socket) => {
                         type: 'info'
                     });
                     broadcastLobbyInfo();
+                    monitoring.recordAdminAction('toggle_maintenance');
                     break;
                     
                 case 'toggle_anticheat':
@@ -2451,6 +2574,7 @@ io.on('connection', (socket) => {
                         message: `🛡️ الحماية ${antiCheat.enabled ? 'مفعلة' : 'معطلة'}`,
                         type: 'info'
                     });
+                    monitoring.recordAdminAction('toggle_anticheat');
                     break;
                     
                 case 'get_stats':
@@ -2461,7 +2585,6 @@ io.on('connection', (socket) => {
                 case 'get_players':
                     const playersList = Array.from(players.values()).map(p => ({
                         userId: p.userId,
-                        telegramId: p.telegramId,
                         username: p.username,
                         roomId: p.roomId,
                         balance: p.balance,
@@ -2510,6 +2633,7 @@ io.on('connection', (socket) => {
                         message: unlocked ? `✅ تم فتح القفل لـ ${resourceId}` : '❌ لم يتم العثور على القفل',
                         type: unlocked ? 'success' : 'error'
                     });
+                    monitoring.recordAdminAction('force_unlock');
                     break;
                     
                 case 'get_visual_settings':
@@ -2533,18 +2657,51 @@ io.on('connection', (socket) => {
                         message: `✅ تم تحديث الصورة لـ ${eventKey}`,
                         type: 'success'
                     });
+                    monitoring.recordAdminAction('update_visual');
+                    break;
+                    
+                case 'update_appearance':
+                    const { logo, background } = params;
+                    if (logo) config.appearance.gameLogo = logo;
+                    if (background) config.appearance.backgroundImage = background;
+                    await updateServerConfig(config);
+                    socket.emit('admin_message', {
+                        message: '✅ تم تحديث مظهر اللعبة',
+                        type: 'success'
+                    });
+                    // بث التحديث لجميع اللاعبين
+                    io.emit('appearance_update', config.appearance);
+                    monitoring.recordAdminAction('update_appearance');
                     break;
                     
                 case 'kick_player':
                     await kickPlayer(socket, params);
+                    monitoring.recordAdminAction('kick_player');
                     break;
                     
                 case 'ban_player':
                     await banPlayer(socket, params);
+                    monitoring.recordAdminAction('ban_player');
                     break;
                     
                 case 'set_balance':
                     await setPlayerBalance(socket, params);
+                    monitoring.recordAdminAction('set_balance');
+                    break;
+                    
+                case 'set_admin':
+                    const { targetUserId, isAdmin } = params;
+                    await pool.query(
+                        'UPDATE users SET is_admin = $1 WHERE id = $2',
+                        [isAdmin, targetUserId]
+                    );
+                    // تحديث الكاش
+                    userCache.delete(targetUserId);
+                    socket.emit('admin_message', {
+                        message: `✅ تم ${isAdmin ? 'ترقية' : 'إزالة صلاحيات'} المستخدم ${targetUserId}`,
+                        type: 'success'
+                    });
+                    monitoring.recordAdminAction('set_admin');
                     break;
                     
                 case 'get_database_health':
@@ -2565,6 +2722,7 @@ io.on('connection', (socket) => {
                         message: db.isConnected ? '✅ Database reconnected successfully' : '❌ Database reconnection failed',
                         type: db.isConnected ? 'success' : 'error'
                     });
+                    monitoring.recordAdminAction('force_reconnect');
                     break;
                     
                 default:
@@ -2584,10 +2742,9 @@ io.on('connection', (socket) => {
         const player = players.get(socket.id);
         if (player) {
             if (player.userId && player.roomId) {
-                const reconnectToken = player.reconnectToken;
+                const reconnectToken = crypto.randomBytes(32).toString('hex');
                 pendingReconnects.set(reconnectToken, {
                     userId: player.userId,
-                    telegramId: player.telegramId,
                     roomId: player.roomId,
                     socketId: socket.id,
                     timestamp: Date.now()
@@ -2643,6 +2800,73 @@ io.on('connection', (socket) => {
 // ============================================
 // 🔧 دوال مساعدة للمدير
 // ============================================
+async function sendAdminData(socket) {
+    try {
+        // إرسال جميع البيانات الإدارية
+        const config = await getServerConfig(true);
+        socket.emit('admin_config', config);
+        
+        const visualResult = await pool.query('SELECT * FROM visual_settings');
+        socket.emit('admin_visual_settings', visualResult.rows);
+        
+        const stats = await getAdminStats();
+        socket.emit('admin_stats', { stats });
+        
+        const monitoringData = {
+            monitoring: monitoring.getStats(),
+            locks: lockSystem.getStats(),
+            antiCheat: antiCheat.getStats(),
+            queue: actionProcessor.getStats(),
+            database: db.getHealth()
+        };
+        socket.emit('admin_monitoring', monitoringData);
+        
+        // قائمة اللاعبين
+        const playersList = Array.from(players.values()).map(p => ({
+            userId: p.userId,
+            username: p.username,
+            roomId: p.roomId,
+            balance: p.balance,
+            elo: p.elo,
+            connectedAt: p.connectedAt,
+            ipAddress: p.ipAddress
+        }));
+        socket.emit('admin_players', { players: playersList });
+        
+        // قائمة الغرف
+        const roomsList = Array.from(rooms.values()).map(r => ({
+            id: r.id,
+            name: r.name,
+            status: r.status,
+            players: r.players.length,
+            maxSeats: r.maxSeats,
+            seatPrice: r.seatPrice,
+            gameRound: r.gameRound || 0,
+            playersList: r.players.map(p => ({
+                userId: p.userId,
+                username: p.username || p.telegramId,
+                health: p.health,
+                kills: p.kills || 0
+            }))
+        }));
+        socket.emit('admin_rooms', { rooms: roomsList });
+        
+        // المباريات النشطة
+        const games = Array.from(activeGames.entries()).map(([id, game]) => ({
+            roomId: id,
+            players: Array.from(game.tanks.keys()),
+            aliveCount: game.aliveCount,
+            bullets: game.bullets.length,
+            duration: Math.floor((Date.now() - game.gameStartTime) / 1000),
+            gameRound: game.gameRound || 0
+        }));
+        socket.emit('admin_active_games', { games });
+        
+    } catch (error) {
+        console.error('Error sending admin data:', error);
+    }
+}
+
 async function getAdminStats() {
     try {
         const result = await pool.query(`
@@ -2653,7 +2877,8 @@ async function getAdminStats() {
                 SUM(wins) as total_wins,
                 SUM(kills) as total_kills,
                 AVG(elo) as average_elo,
-                COUNT(CASE WHEN is_banned THEN 1 END) as banned_users
+                COUNT(CASE WHEN is_banned THEN 1 END) as banned_users,
+                COUNT(CASE WHEN is_admin THEN 1 END) as admin_users
             FROM users
         `);
         
@@ -2665,6 +2890,7 @@ async function getAdminStats() {
             totalKills: parseInt(result.rows[0]?.total_kills) || 0,
             averageELO: Math.round(result.rows[0]?.average_elo) || 1000,
             bannedUsers: parseInt(result.rows[0]?.banned_users) || 0,
+            adminUsers: parseInt(result.rows[0]?.admin_users) || 0,
             onlinePlayers: players.size,
             activeRooms: rooms.size,
             activeGames: activeGames.size,
@@ -2714,7 +2940,7 @@ async function kickPlayer(socket, params) {
     }
     
     socket?.emit('admin_message', { 
-        message: `✅ تم طرد اللاعب ${player.telegramId}`,
+        message: `✅ تم طرد اللاعب ${userId}`,
         type: 'success'
     });
 }
@@ -2732,6 +2958,9 @@ async function banPlayer(socket, params) {
          reason || 'تم حظرك من قبل المدير', 
          userId]
     );
+    
+    // تحديث الكاش
+    userCache.delete(userId);
     
     const player = Array.from(players.values()).find(p => p.userId === userId);
     if (player) {
@@ -2760,7 +2989,7 @@ async function setPlayerBalance(socket, params) {
         return;
     }
     
-    let newBalance = result.rows[0].balance || 100;
+    let newBalance = result.rows[0].balance || 0;
     
     if (action === 'set') {
         newBalance = amount;
@@ -2772,6 +3001,9 @@ async function setPlayerBalance(socket, params) {
     
     newBalance = Math.max(0, newBalance);
     await pool.query('UPDATE users SET balance = $1 WHERE id = $2', [newBalance, userId]);
+    
+    // تحديث الكاش
+    userCache.delete(userId);
     
     const player = Array.from(players.values()).find(p => p.userId === userId);
     if (player) {
@@ -2794,12 +3026,6 @@ async function setPlayerBalance(socket, params) {
 // 📡 API Routes
 // ============================================
 
-async function verifyAdmin(adminToken, userId) {
-    if (adminToken !== 'authenticated') return false;
-    const result = await pool.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
-    return result.rows[0]?.is_admin || false;
-}
-
 // نقطة نهاية للتحقق من صحة الخادم
 app.get('/health', (req, res) => {
     const health = {
@@ -2808,160 +3034,49 @@ app.get('/health', (req, res) => {
         uptime: monitoring.formatUptime(Math.floor((Date.now() - monitoring.startTime) / 1000)),
         database: db.getHealth(),
         connections: monitoring.metrics.connections.active,
-        version: '8.1.0'
+        version: '9.0.0'
     };
     res.json(health);
 });
 
-// نقطة نهاية للتحقق من حالة قاعدة البيانات
-app.get('/db-health', async (req, res) => {
+// نقطة نهاية للحصول على إعدادات المظهر (للجميع)
+app.get('/api/appearance', async (req, res) => {
     try {
-        await pool.query('SELECT 1');
-        res.json({ 
-            status: 'healthy',
-            details: db.getHealth()
+        const config = await getServerConfig();
+        res.json({
+            success: true,
+            appearance: config.appearance || {
+                gameLogo: '/images/default/logo.png',
+                backgroundImage: '/images/default/background.jpg'
+            }
         });
-    } catch (error) {
-        res.status(503).json({ 
-            status: 'unhealthy',
-            error: error.message,
-            details: db.getHealth()
-        });
-    }
-});
-
-// الحصول على إعدادات الخادم
-app.get('/api/admin/config', async (req, res) => {
-    const { adminToken, userId } = req.query;
-    if (!await verifyAdmin(adminToken, userId)) {
-        return res.status(403).json({ success: false, error: 'Unauthorized' });
-    }
-    const config = await getServerConfig();
-    res.json({ success: true, config });
-});
-
-// الحصول على إحصائيات المراقبة
-app.get('/api/admin/monitoring', async (req, res) => {
-    const { adminToken, userId } = req.query;
-    if (!await verifyAdmin(adminToken, userId)) {
-        return res.status(403).json({ success: false, error: 'Unauthorized' });
-    }
-    res.json({ 
-        success: true, 
-        monitoring: monitoring.getStats(),
-        locks: lockSystem.getStats(),
-        antiCheat: antiCheat.getStats(),
-        queue: actionProcessor.getStats(),
-        database: db.getHealth()
-    });
-});
-
-// الحصول على الإعدادات البصرية
-app.get('/api/admin/visual_settings', async (req, res) => {
-    const { adminToken, userId } = req.query;
-    if (!await verifyAdmin(adminToken, userId)) {
-        return res.status(403).json({ success: false, error: 'Unauthorized' });
-    }
-    
-    const result = await pool.query('SELECT * FROM visual_settings');
-    res.json({ success: true, settings: result.rows });
-});
-
-// تحديث الإعدادات البصرية
-app.post('/api/admin/visual_settings', async (req, res) => {
-    const { adminToken, userId, eventKey, imageUrl, altText } = req.body;
-    if (!await verifyAdmin(adminToken, userId)) {
-        return res.status(403).json({ success: false, error: 'Unauthorized' });
-    }
-    
-    try {
-        await pool.query(
-            `INSERT INTO visual_settings (event_key, image_url, alt_text) 
-             VALUES ($1, $2, $3) 
-             ON CONFLICT (event_key) DO UPDATE SET 
-             image_url = EXCLUDED.image_url,
-             alt_text = EXCLUDED.alt_text,
-             updated_at = CURRENT_TIMESTAMP`,
-            [eventKey, imageUrl, altText]
-        );
-        await loadVisualSettings();
-        res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// الحصول على إحصائيات مفصلة
-app.get('/api/admin/stats', async (req, res) => {
-    const { adminToken, userId } = req.query;
-    if (!await verifyAdmin(adminToken, userId)) {
-        return res.status(403).json({ success: false, error: 'Unauthorized' });
+// نقطة نهاية للحصول على بيانات المستخدم (للجميع)
+app.get('/api/user/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const userData = await getUserData(userId);
+        res.json({
+            success: true,
+            user: {
+                id: userData.id,
+                username: userData.username,
+                balance: userData.balance || 0,
+                elo: userData.elo || 1000,
+                rank: ELO.getRank(userData.elo || 1000),
+                kills: userData.kills || 0,
+                wins: userData.wins || 0,
+                gamesPlayed: userData.games_played || 0,
+                isAdmin: userData.is_admin || false
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
     }
-    
-    const stats = await getAdminStats();
-    res.json({ success: true, stats });
-});
-
-// الحصول على قائمة اللاعبين
-app.get('/api/admin/players', async (req, res) => {
-    const { adminToken, userId } = req.query;
-    if (!await verifyAdmin(adminToken, userId)) {
-        return res.status(403).json({ success: false, error: 'Unauthorized' });
-    }
-    
-    const playersList = Array.from(players.values()).map(p => ({
-        userId: p.userId,
-        telegramId: p.telegramId,
-        username: p.username,
-        roomId: p.roomId,
-        balance: p.balance,
-        elo: p.elo,
-        connectedAt: p.connectedAt,
-        ipAddress: p.ipAddress
-    }));
-    
-    res.json({ success: true, players: playersList });
-});
-
-// الحصول على قائمة الغرف
-app.get('/api/admin/rooms', async (req, res) => {
-    const { adminToken, userId } = req.query;
-    if (!await verifyAdmin(adminToken, userId)) {
-        return res.status(403).json({ success: false, error: 'Unauthorized' });
-    }
-    
-    const roomsList = Array.from(rooms.values()).map(r => ({
-        id: r.id,
-        name: r.name,
-        type: r.type,
-        status: r.status,
-        players: r.players.length,
-        maxSeats: r.maxSeats,
-        seatPrice: r.seatPrice,
-        gameRound: r.gameRound || 0,
-        playersList: r.players.map(p => ({
-            userId: p.userId,
-            username: p.username || p.telegramId,
-            health: p.health,
-            kills: p.kills || 0,
-            elo: p.elo
-        })),
-        createdAt: r.createdAt,
-        startTime: r.startTime
-    }));
-    
-    res.json({ success: true, rooms: roomsList });
-});
-
-// فتح قفل بالقوة (API)
-app.post('/api/admin/force_unlock', async (req, res) => {
-    const { adminToken, userId, resourceId, targetUserId } = req.body;
-    if (!await verifyAdmin(adminToken, userId)) {
-        return res.status(403).json({ success: false, error: 'Unauthorized' });
-    }
-    
-    const unlocked = lockSystem.forceUnlock(resourceId, targetUserId);
-    res.json({ success: unlocked });
 });
 
 // ============================================
@@ -2985,7 +3100,7 @@ async function startServer() {
             console.log(`
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                              ║
-║     🎮 BATTLE TANKS ROYALE - الإصدار النهائي المحسن v8.1.0 🎮            ║
+║     🎮 BATTLE TANKS ROYALE - الإصدار النهائي v9.0.0 🎮                    ║
 ║                                                                              ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║  📡 Server: http://localhost:${PORT}
@@ -3001,18 +3116,12 @@ async function startServer() {
 ║  🏠 Rooms: ${rooms.size} available
 ║  👥 Players: ${players.size} online
 ║  🎮 Games: ${activeGames.size} active
+║  👑 Admin ID: 7011476249
 ║                                                                              ║
-║  📊 Admin API Endpoints:
+║  📊 API Endpoints:
 ║     - GET  /health
-║     - GET  /db-health
-║     - GET  /api/admin/config
-║     - GET  /api/admin/monitoring
-║     - GET  /api/admin/visual_settings
-║     - POST /api/admin/visual_settings
-║     - GET  /api/admin/stats
-║     - GET  /api/admin/players
-║     - GET  /api/admin/rooms
-║     - POST /api/admin/force_unlock
+║     - GET  /api/appearance
+║     - GET  /api/user/:userId
 ║                                                                              ║
 ║  🔄 Database Auto-Reconnect: ✅ ENABLED
 ║  ⏱️  Reconnect Delay: Exponential (5s - 60s)
@@ -3036,7 +3145,6 @@ async function startServer() {
                     console.error('❌ Database health check failed:', error.message);
                     db.isConnected = false;
                     monitoring.recordDatabaseStatus(false, error.message);
-                    // محاولة إعادة الاتصال تلقائياً
                     db.connect().catch(() => {});
                 }
             }
@@ -3044,7 +3152,6 @@ async function startServer() {
         
     } catch (error) {
         console.error('❌ Failed to start server:', error);
-        // محاولة إعادة التشغيل بعد تأخير
         console.log(`🔄 Retrying server start in 10 seconds...`);
         setTimeout(startServer, 10000);
     }
@@ -3085,17 +3192,14 @@ process.on('SIGINT', () => {
     });
 });
 
-// التعامل مع الأخطاء غير المتوقعة
 process.on('uncaughtException', (error) => {
     console.error('💥 Uncaught Exception:', error);
     monitoring.recordError('uncaught_exception', error.message);
-    // لا نخرج من العملية، نحاول الاستمرار
 });
 
 process.on('unhandledRejection', (reason, promise) => {
     console.error('💥 Unhandled Rejection:', reason);
     monitoring.recordError('unhandled_rejection', reason);
-    // لا نخرج من العملية، نحاول الاستمرار
 });
 
 module.exports = { server, io, app, pool, monitoring, lockSystem, antiCheat, actionProcessor, db };
