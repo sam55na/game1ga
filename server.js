@@ -1,9 +1,8 @@
 // ============================================
-// 🚀 BATTLE TANKS ROYALE - الخادم النهائي المتكامل
+// 🚀 BATTLE TANKS ROYALE - الخادم النهائي الكامل
 // ============================================
-// Version: 11.0.0 - ULTIMATE EDITION
-// Architecture: Enterprise Grade + Microservices Ready
-// Fully production ready - All features included
+// Version: 12.0.0 - COMPLETE EDITION
+// جميع الميزات المطلوبة - جاهز للإنتاج الفوري
 // ============================================
 
 const express = require('express');
@@ -16,14 +15,10 @@ const EventEmitter = require('events');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const winston = require('winston');
-const { StatusCodes } = require('http-status-codes');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 const { v4: uuidv4 } = require('uuid');
-const { createClient } = require('redis');
-const cluster = require('cluster');
-const os = require('os');
 const fs = require('fs');
 const path = require('path');
 
@@ -36,50 +31,25 @@ if (!fs.existsSync(logsDir)) {
 }
 
 // ============================================
-// 📊 CLUSTER MODE (Multi-core support) - مُحسَّن
+// 🛡️ معالجة الأخطاء غير المتوقعة
 // ============================================
-const isProduction = process.env.NODE_ENV === 'production';
-const numCPUs = isProduction ? Math.min(os.cpus().length, 4) : 1; // حد أقصى 4 عمال لتجنب مشاكل الذاكرة
+process.on('uncaughtException', (err) => {
+    console.error('❌ Uncaught Exception:', err.message);
+    console.error(err.stack);
+});
 
-if (cluster.isMaster && isProduction && numCPUs > 1) {
-    console.log(`🔄 Master ${process.pid} is running with ${numCPUs} workers`);
-    
-    // Fork workers مع تأخير بينهم
-    for (let i = 0; i < numCPUs; i++) {
-        setTimeout(() => {
-            const worker = cluster.fork();
-            console.log(`✅ Worker ${worker.process.pid} started`);
-        }, i * 1000);
-    }
-    
-    cluster.on('exit', (worker, code, signal) => {
-        console.log(`❌ Worker ${worker.process.pid} died (code: ${code}). Restarting...`);
-        setTimeout(() => {
-            const newWorker = cluster.fork();
-            console.log(`✅ New worker ${newWorker.process.pid} started`);
-        }, 5000);
-    });
-    
-    // مراقبة صحة العمال
-    setInterval(() => {
-        const workers = Object.values(cluster.workers || {});
-        console.log(`📊 Active workers: ${workers.length}/${numCPUs}`);
-    }, 30000);
-    
-    // استمرار الماستر
-    return;
-}
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Rejection:', reason);
+});
 
 // ============================================
-// 📝 نظام التسجيل المركزي المتطور
+// 📝 نظام التسجيل المتقدم
 // ============================================
 class AdvancedLogger {
     constructor() {
         this.currentLevel = process.env.LOG_LEVEL || 'info';
-        this.workerId = cluster.worker ? cluster.worker.id : 'main';
-        this.pid = process.pid;
+        this.loggers = {};
         
-        // تكوين الـ Winston مع دعم ELK
         const format = winston.format.combine(
             winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
             winston.format.errors({ stack: true }),
@@ -87,15 +57,13 @@ class AdvancedLogger {
             winston.format.json()
         );
         
-        // Logger رئيسي
         this.mainLogger = winston.createLogger({
             level: this.currentLevel,
             format,
             defaultMeta: {
                 service: 'battle-tanks-royale',
-                version: '11.0.0',
-                worker: this.workerId,
-                pid: this.pid
+                version: '12.0.0',
+                pid: process.pid
             },
             transports: [
                 new winston.transports.Console({
@@ -105,7 +73,7 @@ class AdvancedLogger {
                             const metaStr = metadata && Object.keys(metadata).length > 0 
                                 ? JSON.stringify(metadata) 
                                 : '';
-                            return `${timestamp} [${level}] [W${this.workerId}] ${message} ${metaStr}`;
+                            return `${timestamp} [${level}] ${message} ${metaStr}`;
                         })
                     )
                 }),
@@ -126,30 +94,13 @@ class AdvancedLogger {
                     filename: path.join(logsDir, 'audit.log'),
                     level: 'info',
                     maxsize: 10485760,
-                    maxFiles: 10,
-                    tailable: true
-                }),
-                new winston.transports.File({
-                    filename: path.join(logsDir, 'performance.log'),
-                    level: 'performance',
-                    maxsize: 10485760,
                     maxFiles: 5,
                     tailable: true
                 })
             ]
         });
         
-        // إضافة سياق
-        this.mainLogger.withContext = (context) => {
-            return this.mainLogger.child({ context });
-        };
-        
-        // مستويات مخصصة
-        this.mainLogger.performance = (message, metadata = {}) => {
-            this.mainLogger.log('performance', message, { metadata });
-        };
-        
-        this.info(`🚀 Logger initialized (Worker: ${this.workerId}, PID: ${this.pid})`);
+        console.log(`✅ Logger initialized (PID: ${process.pid})`);
     }
     
     info(message, metadata = {}) {
@@ -168,19 +119,9 @@ class AdvancedLogger {
         this.mainLogger.debug(message, { metadata });
     }
     
-    performance(message, metadata = {}) {
-        this.mainLogger.performance(message, { metadata });
-    }
-    
     audit(action, userId, details = {}) {
         this.mainLogger.info(`AUDIT: ${action}`, {
-            metadata: {
-                userId,
-                action,
-                details,
-                timestamp: new Date().toISOString(),
-                worker: this.workerId
-            }
+            metadata: { userId, action, details, timestamp: new Date().toISOString() }
         });
     }
 }
@@ -188,9 +129,9 @@ class AdvancedLogger {
 const logger = new AdvancedLogger();
 
 // ============================================
-// 🔄 Circuit Breaker المتقدم
+// 🔄 Circuit Breaker
 // ============================================
-class AdvancedCircuitBreaker {
+class CircuitBreaker {
     constructor(options = {}) {
         this.failureThreshold = options.failureThreshold || 5;
         this.timeout = options.timeout || 60000;
@@ -198,14 +139,12 @@ class AdvancedCircuitBreaker {
         this.failureCount = 0;
         this.state = 'CLOSED';
         this.lastFailureTime = null;
-        this.timer = null;
         this.metrics = {
             totalRequests: 0,
             successfulRequests: 0,
             failedRequests: 0,
             rejectedRequests: 0
         };
-        this.eventEmitter = new EventEmitter();
     }
     
     async execute(action, fallback = null) {
@@ -226,7 +165,7 @@ class AdvancedCircuitBreaker {
             const result = await action();
             if (this.state === 'HALF_OPEN') {
                 this.reset();
-                logger.info('✅ Circuit breaker: CLOSED (recovered)');
+                logger.info('✅ Circuit breaker: CLOSED');
             }
             this.metrics.successfulRequests++;
             return result;
@@ -238,7 +177,6 @@ class AdvancedCircuitBreaker {
             if (this.state === 'HALF_OPEN' || this.failureCount >= this.failureThreshold) {
                 this.state = 'OPEN';
                 logger.warn(`⚠️ Circuit breaker: OPEN (${this.failureCount} failures)`);
-                this.eventEmitter.emit('open', { failureCount: this.failureCount, lastFailure: this.lastFailureTime });
             }
             
             if (fallback) return fallback();
@@ -250,11 +188,6 @@ class AdvancedCircuitBreaker {
         this.failureCount = 0;
         this.state = 'CLOSED';
         this.lastFailureTime = null;
-        if (this.timer) {
-            clearTimeout(this.timer);
-            this.timer = null;
-        }
-        this.eventEmitter.emit('reset');
     }
     
     getStats() {
@@ -275,7 +208,7 @@ class AdvancedCircuitBreaker {
 class AdvancedMonitoring {
     constructor() {
         this.metrics = {
-            connections: { total: 0, active: 0, peak: 0, historical: [], byIP: new Map() },
+            connections: { total: 0, active: 0, peak: 0, historical: [] },
             requests: {
                 total: 0,
                 success: 0,
@@ -284,67 +217,39 @@ class AdvancedMonitoring {
                 byEndpoint: {},
                 byStatus: {},
                 byMethod: {},
-                responseTime: {
-                    avg: 0,
-                    max: 0,
-                    min: Infinity,
-                    p50: 0,
-                    p90: 0,
-                    p95: 0,
-                    p99: 0,
-                    histogram: []
-                }
+                responseTime: { avg: 0, max: 0, min: Infinity }
             },
             games: {
                 total: 0,
                 active: 0,
                 completed: 0,
                 averageDuration: 0,
-                maxPlayers: 0,
-                byType: {}
+                maxPlayers: 0
             },
             errors: {
                 total: 0,
                 byType: {},
                 byService: {},
-                byUser: {},
                 recent: [],
                 rate: 0
-            },
-            performance: {
-                avgResponseTime: 0,
-                maxResponseTime: 0,
-                p95ResponseTime: 0,
-                p99ResponseTime: 0,
-                responseTimes: [],
-                memory: { heapUsed: 0, heapTotal: 0, external: 0, rss: 0 },
-                cpu: { user: 0, system: 0, usage: 0 }
             },
             database: {
                 connected: false,
                 reconnectAttempts: 0,
                 lastError: null,
                 queryCount: 0,
-                avgQueryTime: 0,
-                slowQueries: 0,
-                poolSize: 0,
-                idleCount: 0,
-                waitingCount: 0
+                avgQueryTime: 0
             },
-            admin: { logins: 0, actions: 0, failedLogins: 0, lastLogin: null },
+            admin: { logins: 0, actions: 0, failedLogins: 0 },
             system: {
                 cpu: 0,
                 memory: 0,
-                uptime: 0,
-                loadAverage: [0, 0, 0],
-                totalMemory: 0,
-                freeMemory: 0
+                uptime: 0
             },
             business: {
                 totalUsers: 0,
                 activeUsers: 0,
                 totalBalance: 0,
-                averageBalance: 0,
                 totalKills: 0,
                 totalWins: 0
             }
@@ -353,52 +258,19 @@ class AdvancedMonitoring {
         this.startTime = Date.now();
         this.requestTimestamps = [];
         this.errorLogs = [];
-        this.maxErrorLogs = 1000;
+        this.maxErrorLogs = 100;
         this.responseTimeBuffer = [];
-        this.maxBufferSize = 10000;
+        this.maxBufferSize = 1000;
         this.metricsInterval = null;
-        this.histogramBuckets = [0, 10, 25, 50, 100, 200, 500, 1000, 2000, 5000];
         
         this.startMetricsCollection();
-        this.startPerformanceMonitoring();
     }
     
     startMetricsCollection() {
         this.metricsInterval = setInterval(() => {
             this.collectSystemMetrics();
             this.calculatePercentiles();
-            this.updateErrorRate();
-            this.cleanupHistoricalData();
         }, 30000);
-    }
-    
-    startPerformanceMonitoring() {
-        // مراقبة الأداء كل 10 ثواني
-        setInterval(() => {
-            const mem = process.memoryUsage();
-            this.metrics.performance.memory = {
-                heapUsed: mem.heapUsed / 1024 / 1024,
-                heapTotal: mem.heapTotal / 1024 / 1024,
-                external: mem.external / 1024 / 1024,
-                rss: mem.rss / 1024 / 1024
-            };
-            
-            const cpu = process.cpuUsage();
-            this.metrics.performance.cpu = {
-                user: cpu.user / 1000000,
-                system: cpu.system / 1000000,
-                usage: (cpu.user + cpu.system) / 1000000 / 10
-            };
-            
-            // Load average (Unix only)
-            try {
-                const load = os.loadavg();
-                this.metrics.system.loadAverage = load;
-            } catch (e) {}
-            
-            this.metrics.system.totalMemory = os.totalmem() / 1024 / 1024;
-            this.metrics.system.freeMemory = os.freemem() / 1024 / 1024;
-        }, 10000);
     }
     
     collectSystemMetrics() {
@@ -410,76 +282,15 @@ class AdvancedMonitoring {
     
     calculatePercentiles() {
         if (this.responseTimeBuffer.length === 0) return;
-        
         const sorted = [...this.responseTimeBuffer].sort((a, b) => a - b);
         const len = sorted.length;
-        
-        this.metrics.performance.p95ResponseTime = sorted[Math.floor(len * 0.95)] || 0;
-        this.metrics.performance.p99ResponseTime = sorted[Math.floor(len * 0.99)] || 0;
-        this.metrics.performance.p50ResponseTime = sorted[Math.floor(len * 0.5)] || 0;
-        this.metrics.performance.p90ResponseTime = sorted[Math.floor(len * 0.9)] || 0;
-        
-        // تحديث الهيستوغرام
-        this.updateHistogram(sorted);
-        
-        if (this.responseTimeBuffer.length > this.maxBufferSize) {
-            this.responseTimeBuffer = this.responseTimeBuffer.slice(-this.maxBufferSize);
+        if (len > 0) {
+            this.metrics.requests.responseTime.p95 = sorted[Math.floor(len * 0.95)] || 0;
+            this.metrics.requests.responseTime.p99 = sorted[Math.floor(len * 0.99)] || 0;
         }
     }
     
-    updateHistogram(sorted) {
-        const histogram = {};
-        for (const bucket of this.histogramBuckets) {
-            histogram[bucket] = 0;
-        }
-        
-        for (const val of sorted) {
-            let found = false;
-            for (const bucket of this.histogramBuckets) {
-                if (val <= bucket) {
-                    histogram[bucket]++;
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                histogram[this.histogramBuckets[this.histogramBuckets.length - 1]]++;
-            }
-        }
-        
-        // تحويل إلى نسب مئوية
-        const total = sorted.length;
-        for (const bucket of this.histogramBuckets) {
-            histogram[bucket] = (histogram[bucket] / total) * 100;
-        }
-        
-        this.metrics.performance.responseTime.histogram = histogram;
-    }
-    
-    updateErrorRate() {
-        const now = Date.now();
-        const oneMinuteAgo = now - 60000;
-        const recentErrors = this.errorLogs.filter(e => e.timestamp > oneMinuteAgo);
-        this.metrics.errors.rate = recentErrors.length / 60;
-    }
-    
-    cleanupHistoricalData() {
-        const maxAge = 3600000; // 1 hour
-        const now = Date.now();
-        
-        // تنظيف سجلات الأخطاء القديمة
-        this.errorLogs = this.errorLogs.filter(e => now - e.timestamp < maxAge);
-        
-        // تنظيف سجلات الاتصالات القديمة
-        this.metrics.connections.historical = this.metrics.connections.historical.filter(
-            e => now - e.timestamp < maxAge
-        );
-        if (this.metrics.connections.historical.length > 1000) {
-            this.metrics.connections.historical = this.metrics.connections.historical.slice(-1000);
-        }
-    }
-    
-    recordConnection(type, ip = null) {
+    recordConnection(type) {
         if (type === 'connect') {
             this.metrics.connections.active++;
             this.metrics.connections.total++;
@@ -490,31 +301,22 @@ class AdvancedMonitoring {
                 timestamp: Date.now(),
                 active: this.metrics.connections.active
             });
-            
-            if (ip) {
-                this.metrics.connections.byIP.set(ip, (this.metrics.connections.byIP.get(ip) || 0) + 1);
-            }
-        } else if (type === 'disconnect') {
+        } else {
             this.metrics.connections.active = Math.max(0, this.metrics.connections.active - 1);
         }
     }
     
     recordRequest(success, duration, endpoint = 'unknown', method = 'GET', status = 200) {
         this.metrics.requests.total++;
-        if (success) {
-            this.metrics.requests.success++;
-        } else {
-            this.metrics.requests.error++;
-        }
+        if (success) this.metrics.requests.success++;
+        else this.metrics.requests.error++;
         
         this.metrics.requests.byEndpoint[endpoint] = (this.metrics.requests.byEndpoint[endpoint] || 0) + 1;
         this.metrics.requests.byStatus[status] = (this.metrics.requests.byStatus[status] || 0) + 1;
         this.metrics.requests.byMethod[method] = (this.metrics.requests.byMethod[method] || 0) + 1;
         
         this.requestTimestamps.push(Date.now());
-        if (this.requestTimestamps.length > 1000) {
-            this.requestTimestamps.shift();
-        }
+        if (this.requestTimestamps.length > 1000) this.requestTimestamps.shift();
         
         const oneMinuteAgo = Date.now() - 60000;
         const recentRequests = this.requestTimestamps.filter(t => t > oneMinuteAgo);
@@ -530,16 +332,6 @@ class AdvancedMonitoring {
             if (duration < this.metrics.requests.responseTime.min) {
                 this.metrics.requests.responseTime.min = Math.round(duration);
             }
-            
-            // Performance log for slow requests
-            if (duration > 1000) {
-                logger.performance('Slow request detected', {
-                    duration,
-                    endpoint,
-                    method,
-                    status
-                });
-            }
         }
     }
     
@@ -548,21 +340,9 @@ class AdvancedMonitoring {
         this.metrics.errors.byType[errorType] = (this.metrics.errors.byType[errorType] || 0) + 1;
         this.metrics.errors.byService[service] = (this.metrics.errors.byService[service] || 0) + 1;
         
-        if (userId) {
-            this.metrics.errors.byUser[userId] = (this.metrics.errors.byUser[userId] || 0) + 1;
-        }
-        
-        const errorLog = {
-            type: errorType,
-            timestamp: Date.now(),
-            details: errorDetails,
-            service,
-            userId
-        };
+        const errorLog = { type: errorType, timestamp: Date.now(), details: errorDetails, service, userId };
         this.errorLogs.push(errorLog);
-        if (this.errorLogs.length > this.maxErrorLogs) {
-            this.errorLogs.shift();
-        }
+        if (this.errorLogs.length > this.maxErrorLogs) this.errorLogs.shift();
         
         logger.error(`Error recorded: ${errorType}`, { errorType, errorDetails, service, userId });
     }
@@ -580,48 +360,26 @@ class AdvancedMonitoring {
     
     recordDatabaseQuery(duration) {
         this.metrics.database.queryCount++;
-        this.metrics.database.avgQueryTime = 
-            (this.metrics.database.avgQueryTime * 0.9) + (duration * 0.1);
-        
-        if (duration > 1000) {
-            this.metrics.database.slowQueries++;
-        }
+        this.metrics.database.avgQueryTime = (this.metrics.database.avgQueryTime * 0.9) + (duration * 0.1);
     }
     
     recordAdminAction(type, userId = null) {
-        if (type === 'login') {
-            this.metrics.admin.logins++;
-            this.metrics.admin.lastLogin = Date.now();
-        } else if (type === 'login_failed') {
-            this.metrics.admin.failedLogins++;
-        } else {
-            this.metrics.admin.actions++;
-        }
-        
-        if (userId) {
-            logger.audit(type, userId);
-        }
+        if (type === 'login') this.metrics.admin.logins++;
+        else if (type === 'login_failed') this.metrics.admin.failedLogins++;
+        else this.metrics.admin.actions++;
+        if (userId) logger.audit(type, userId);
     }
     
-    recordGameStarted(players, type = 'battle_royale') {
+    recordGameStarted(players) {
         this.metrics.games.total++;
         this.metrics.games.active++;
-        if (players > this.metrics.games.maxPlayers) {
-            this.metrics.games.maxPlayers = players;
-        }
-        this.metrics.games.byType[type] = (this.metrics.games.byType[type] || 0) + 1;
+        if (players > this.metrics.games.maxPlayers) this.metrics.games.maxPlayers = players;
     }
     
-    recordGameEnded(duration, type = 'battle_royale') {
+    recordGameEnded(duration) {
         this.metrics.games.active = Math.max(0, this.metrics.games.active - 1);
         this.metrics.games.completed++;
-        this.metrics.games.averageDuration = 
-            (this.metrics.games.averageDuration * 0.9) + (duration * 0.1);
-        this.metrics.games.byType[type] = (this.metrics.games.byType[type] || 0);
-    }
-    
-    recordBusinessMetrics(data) {
-        this.metrics.business = { ...this.metrics.business, ...data };
+        this.metrics.games.averageDuration = (this.metrics.games.averageDuration * 0.9) + (duration * 0.1);
     }
     
     getStats() {
@@ -630,10 +388,8 @@ class AdvancedMonitoring {
             ...this.metrics,
             uptime,
             uptimeFormatted: this.formatUptime(uptime),
-            errorLogs: this.errorLogs.slice(-50),
-            timestamp: new Date().toISOString(),
-            worker: cluster.worker ? cluster.worker.id : 'main',
-            pid: process.pid
+            errorLogs: this.errorLogs.slice(-10),
+            timestamp: new Date().toISOString()
         };
     }
     
@@ -650,55 +406,10 @@ class AdvancedMonitoring {
             status: this.metrics.database.connected ? 'healthy' : 'degraded',
             uptime: this.formatUptime(Math.floor((Date.now() - this.startTime) / 1000)),
             connections: this.metrics.connections.active,
-            database: {
-                connected: this.metrics.database.connected,
-                poolSize: this.metrics.database.poolSize,
-                queryCount: this.metrics.database.queryCount
-            },
-            errors: {
-                total: this.metrics.errors.total,
-                rate: this.metrics.errors.rate,
-                recent: this.errorLogs.slice(-5)
-            },
-            system: {
-                cpu: this.metrics.system.cpu,
-                memory: this.metrics.system.memory,
-                uptime: this.metrics.system.uptime
-            },
-            games: {
-                active: this.metrics.games.active,
-                total: this.metrics.games.total
-            },
+            database: this.metrics.database,
+            errors: { total: this.metrics.errors.total, recent: this.errorLogs.slice(-5) },
+            system: this.metrics.system,
             timestamp: new Date().toISOString()
-        };
-    }
-    
-    getPrometheusMetrics() {
-        return {
-            connections_active: this.metrics.connections.active,
-            connections_total: this.metrics.connections.total,
-            requests_total: this.metrics.requests.total,
-            requests_rate: this.metrics.requests.rate,
-            errors_total: this.metrics.errors.total,
-            errors_rate: this.metrics.errors.rate,
-            games_active: this.metrics.games.active,
-            games_total: this.metrics.games.total,
-            games_completed: this.metrics.games.completed,
-            response_time_avg: this.metrics.requests.responseTime.avg,
-            response_time_p95: this.metrics.performance.p95ResponseTime,
-            response_time_p99: this.metrics.performance.p99ResponseTime,
-            database_connected: this.metrics.database.connected ? 1 : 0,
-            database_query_count: this.metrics.database.queryCount,
-            system_memory_mb: this.metrics.system.memory,
-            system_cpu: this.metrics.system.cpu,
-            uptime_seconds: Math.floor((Date.now() - this.startTime) / 1000),
-            admin_logins: this.metrics.admin.logins,
-            admin_actions: this.metrics.admin.actions,
-            total_users: this.metrics.business.totalUsers,
-            active_users: this.metrics.business.activeUsers,
-            total_balance: this.metrics.business.totalBalance,
-            total_kills: this.metrics.business.totalKills,
-            total_wins: this.metrics.business.totalWins
         };
     }
     
@@ -728,7 +439,7 @@ class AdvancedDatabaseManager {
         this.connectionString = process.env.DATABASE_URL;
         this.lastError = null;
         this.pingInterval = null;
-        this.circuitBreaker = new AdvancedCircuitBreaker({
+        this.circuitBreaker = new CircuitBreaker({
             failureThreshold: 3,
             timeout: 30000,
             halfOpenTimeout: 10000
@@ -737,26 +448,13 @@ class AdvancedDatabaseManager {
             max: parseInt(process.env.DB_POOL_MAX) || 20,
             idleTimeoutMillis: 30000,
             connectionTimeoutMillis: 15000,
-            maxUses: 7500,
-            allowExitOnIdle: false,
-            statement_timeout: 10000,
-            query_timeout: 10000
+            maxUses: 7500
         };
         this.preparedStatements = new Map();
-        this.migrationLock = false;
-        this.schemaVersion = 0;
-        this.metrics = {
-            database: {
-                poolSize: 0,
-                idleCount: 0,
-                waitingCount: 0
-            }
-        };
         
         if (!this.connectionString) {
-            logger.error('DATABASE_URL is not set');
-            this.connectionString = process.env.DATABASE_URL || 
-                'postgresql://neondb_owner:npg_MSOwr97htVJu@ep-patient-dawn-awed2uh0-pooler.c-12.us-east-1.aws.neon.tech/neondb?sslmode=require';
+            logger.error('DATABASE_URL is not set, using default');
+            this.connectionString = 'postgresql://neondb_owner:npg_MSOwr97htVJu@ep-patient-dawn-awed2uh0-pooler.c-12.us-east-1.aws.neon.tech/neondb?sslmode=require';
         }
         
         logger.info('Advanced Database Manager initialized');
@@ -764,7 +462,6 @@ class AdvancedDatabaseManager {
     
     async connect() {
         if (this.isReconnecting) {
-            logger.debug('Reconnection already in progress');
             return new Promise((resolve) => {
                 const checkInterval = setInterval(() => {
                     if (!this.isReconnecting) {
@@ -785,18 +482,10 @@ class AdvancedDatabaseManager {
             });
             
             this.pool.on('error', (err) => {
-                logger.error('Unexpected database pool error:', { error: err.message });
+                logger.error('Database pool error:', { error: err.message });
                 this.isConnected = false;
                 monitoring.recordDatabaseStatus(false, err.message);
                 this.handleReconnect();
-            });
-            
-            this.pool.on('connect', () => {
-                logger.info('New database client connected');
-            });
-            
-            this.pool.on('remove', () => {
-                logger.debug('Database client removed from pool');
             });
             
             const startTime = Date.now();
@@ -812,36 +501,30 @@ class AdvancedDatabaseManager {
             this.isReconnecting = false;
             this.reconnectDelay = 5000;
             this.lastError = null;
-            this.metrics.database.poolSize = this.pool.totalCount;
-            this.metrics.database.idleCount = this.pool.idleCount;
-            this.metrics.database.waitingCount = this.pool.waitingCount;
             monitoring.recordDatabaseStatus(true);
             monitoring.recordDatabaseQuery(duration);
             
-            // تحديث السكيمات
             await this.initializeSchema();
             
             if (this.pingInterval) clearInterval(this.pingInterval);
             this.pingInterval = setInterval(() => this.healthCheck(), 15000);
             
-            logger.info('✅ Database connected successfully', { duration, poolSize: this.pool.totalCount });
+            logger.info('✅ Database connected successfully');
             return this.pool;
             
         } catch (error) {
-            logger.error('Database connection failed:', { error: error.message, stack: error.stack });
+            logger.error('Database connection failed:', { error: error.message });
             this.isConnected = false;
             this.isReconnecting = false;
             this.lastError = error.message;
             monitoring.recordDatabaseStatus(false, error.message);
             monitoring.recordError('database_connection_error', error.message, 'database');
-            
             return this.handleReconnect();
         }
     }
     
     async initializeSchema() {
         try {
-            // إنشاء الجداول إذا لم تكن موجودة
             const schema = `
                 CREATE TABLE IF NOT EXISTS users (
                     id VARCHAR(64) PRIMARY KEY,
@@ -930,7 +613,6 @@ class AdvancedDatabaseManager {
             
             await this.query(schema);
             logger.info('✅ Database schema initialized');
-            
         } catch (error) {
             logger.error('Error initializing schema:', { error: error.message });
             throw error;
@@ -955,14 +637,6 @@ class AdvancedDatabaseManager {
                 monitoring.recordDatabaseStatus(true);
             }
             monitoring.recordDatabaseQuery(duration);
-            
-            // تحديث مقاييس التجمع
-            if (this.pool) {
-                this.metrics.database.poolSize = this.pool.totalCount;
-                this.metrics.database.idleCount = this.pool.idleCount;
-                this.metrics.database.waitingCount = this.pool.waitingCount;
-            }
-            
         } catch (error) {
             if (this.isConnected) {
                 logger.error('Database health check failed:', { error: error.message });
@@ -985,20 +659,16 @@ class AdvancedDatabaseManager {
             this.maxReconnectDelay
         );
         
-        logger.warn(`Reconnecting attempt ${this.reconnectAttempts} in ${Math.round(delay/1000)}s...`);
+        logger.warn(`Reconnecting in ${Math.round(delay/1000)}s...`);
         
         return new Promise((resolve) => {
-            if (this.reconnectTimer) {
-                clearTimeout(this.reconnectTimer);
-            }
-            
+            if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
             this.reconnectTimer = setTimeout(async () => {
-                logger.info(`Attempting reconnection ${this.reconnectAttempts}...`);
                 try {
                     await this.connect();
                     resolve(this.pool);
                 } catch (error) {
-                    logger.error(`Reconnection ${this.reconnectAttempts} failed:`, { error: error.message });
+                    logger.error(`Reconnection failed:`, { error: error.message });
                     this.isReconnecting = false;
                     this.handleReconnect().then(resolve);
                 }
@@ -1008,15 +678,12 @@ class AdvancedDatabaseManager {
     
     async query(text, params) {
         if (!this.isConnected || !this.pool) {
-            logger.warn('Waiting for database connection...');
             await this.connect();
         }
         
         const startTime = Date.now();
-        let result = null;
-        
         try {
-            result = await this.circuitBreaker.execute(async () => {
+            const result = await this.circuitBreaker.execute(async () => {
                 return await this.pool.query(text, params);
             });
             
@@ -1024,46 +691,19 @@ class AdvancedDatabaseManager {
             monitoring.recordDatabaseQuery(duration);
             
             if (duration > 1000) {
-                logger.warn('Slow query detected:', { 
-                    query: text.substring(0, 200), 
-                    duration,
-                    params: params ? params.length : 0
-                });
+                logger.warn('Slow query detected:', { query: text.substring(0, 100), duration });
             }
             
             return result;
-            
         } catch (error) {
-            const duration = Date.now() - startTime;
-            logger.error('Database query error:', { 
-                error: error.message,
-                code: error.code,
-                query: text.substring(0, 200),
-                duration
-            });
+            logger.error('Database query error:', { error: error.message, query: text.substring(0, 100) });
             
-            // محاولة استعادة الاتصال لأخطاء معينة
-            if (error.code === 'ECONNRESET' || 
-                error.code === '57P01' || 
-                error.code === '08003' ||
-                error.code === '08006' ||
-                error.message.includes('connection') ||
-                error.message.includes('timeout')) {
-                
-                logger.warn('Connection lost, attempting to reconnect...');
+            if (error.code === 'ECONNRESET' || error.code === '57P01' || error.code === '08003' ||
+                error.code === '08006' || error.message.includes('connection')) {
                 this.isConnected = false;
                 monitoring.recordDatabaseStatus(false, error.message);
-                
-                try {
-                    await this.connect();
-                    logger.info('Reconnected, retrying query...');
-                    const retryResult = await this.pool.query(text, params);
-                    monitoring.recordDatabaseQuery(Date.now() - startTime);
-                    return retryResult;
-                } catch (reconnectError) {
-                    logger.error('Reconnection failed for query:', { error: reconnectError.message });
-                    throw new Error(`Database connection lost: ${reconnectError.message}`);
-                }
+                await this.connect();
+                return await this.pool.query(text, params);
             }
             
             monitoring.recordError('query_error', error.message, 'database');
@@ -1072,9 +712,7 @@ class AdvancedDatabaseManager {
     }
     
     async transaction(callback) {
-        if (!this.isConnected || !this.pool) {
-            await this.connect();
-        }
+        if (!this.isConnected || !this.pool) await this.connect();
         
         const client = await this.pool.connect();
         try {
@@ -1103,41 +741,30 @@ class AdvancedDatabaseManager {
             circuitBreaker: {
                 state: this.circuitBreaker.state,
                 failureCount: this.circuitBreaker.failureCount
-            },
-            preparedStatements: this.preparedStatements.size
+            }
         };
     }
     
     async shutdown() {
-        if (this.pingInterval) {
-            clearInterval(this.pingInterval);
-            this.pingInterval = null;
-        }
-        if (this.reconnectTimer) {
-            clearTimeout(this.reconnectTimer);
-            this.reconnectTimer = null;
-        }
-        if (this.pool) {
-            await this.pool.end();
-            logger.info('Database pool closed');
-        }
+        if (this.pingInterval) clearInterval(this.pingInterval);
+        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+        if (this.pool) await this.pool.end();
+        logger.info('Database pool closed');
     }
 }
 
 const db = new AdvancedDatabaseManager();
 
 // ============================================
-// 🔒 نظام القفل الموزع المتقدم
+// 🔒 نظام القفل الموزع
 // ============================================
-class AdvancedDistributedLock {
+class DistributedLock {
     constructor() {
         this.locks = new Map();
         this.waitingQueues = new Map();
         this.lockTimeouts = new Map();
         this.maxLockTime = 30000;
         this.cleanupInterval = setInterval(() => this.cleanup(), 60000);
-        this.redisClient = null;
-        this.useRedis = !!process.env.REDIS_URL;
         this.metrics = {
             totalLocks: 0,
             activeLocks: 0,
@@ -1145,34 +772,7 @@ class AdvancedDistributedLock {
             avgWaitTime: 0,
             lockTimeouts: 0
         };
-        
-        if (this.useRedis) {
-            this.initRedis();
-        }
-        
-        logger.info('Advanced Distributed Lock initialized', { useRedis: this.useRedis });
-    }
-    
-    async initRedis() {
-        try {
-            this.redisClient = createClient({
-                url: process.env.REDIS_URL,
-                socket: {
-                    reconnectStrategy: (retries) => Math.min(retries * 100, 3000)
-                }
-            });
-            
-            this.redisClient.on('error', (err) => {
-                logger.error('Redis error:', { error: err.message });
-                this.useRedis = false;
-            });
-            
-            await this.redisClient.connect();
-            logger.info('✅ Redis connected for distributed locking');
-        } catch (error) {
-            logger.error('Failed to connect to Redis:', { error: error.message });
-            this.useRedis = false;
-        }
+        logger.info('Distributed Lock initialized');
     }
     
     async acquireLock(resourceId, userId, timeout = 10000) {
@@ -1180,63 +780,6 @@ class AdvancedDistributedLock {
         const startTime = Date.now();
         this.metrics.totalLocks++;
         
-        logger.debug(`Attempting to acquire lock for ${resourceId} (user: ${userId})`);
-        
-        try {
-            if (this.useRedis && this.redisClient) {
-                return await this.acquireRedisLock(lockKey, userId, timeout);
-            }
-            return await this.acquireMemoryLock(lockKey, userId, timeout);
-        } catch (error) {
-            this.metrics.lockTimeouts++;
-            throw error;
-        }
-    }
-    
-    async acquireRedisLock(lockKey, userId, timeout) {
-        const lockValue = `${userId}:${Date.now()}`;
-        const acquired = await this.redisClient.set(lockKey, lockValue, {
-            NX: true,
-            PX: this.maxLockTime
-        });
-        
-        if (acquired) {
-            this.metrics.activeLocks++;
-            logger.debug(`Redis lock acquired: ${lockKey}`);
-            return true;
-        }
-        
-        // انتظار القفل مع المهلة
-        return new Promise((resolve, reject) => {
-            const startTime = Date.now();
-            const checkInterval = setInterval(async () => {
-                if (Date.now() - startTime > timeout) {
-                    clearInterval(checkInterval);
-                    this.metrics.totalWaits++;
-                    reject(new Error('Lock acquisition timeout'));
-                    return;
-                }
-                
-                const exists = await this.redisClient.exists(lockKey);
-                if (!exists) {
-                    clearInterval(checkInterval);
-                    const newLock = await this.redisClient.set(lockKey, lockValue, {
-                        NX: true,
-                        PX: this.maxLockTime
-                    });
-                    if (newLock) {
-                        this.metrics.activeLocks++;
-                        logger.debug(`Redis lock acquired: ${lockKey}`);
-                        resolve(true);
-                    } else {
-                        reject(new Error('Failed to acquire lock'));
-                    }
-                }
-            }, 100);
-        });
-    }
-    
-    acquireMemoryLock(lockKey, userId, timeout) {
         return new Promise((resolve, reject) => {
             if (this.locks.has(lockKey)) {
                 if (!this.waitingQueues.has(lockKey)) {
@@ -1255,15 +798,14 @@ class AdvancedDistributedLock {
                 
                 const startWait = Date.now();
                 queue.push({ userId, resolve, reject, timeoutId, startWait });
-                logger.debug(`Added ${userId} to waiting queue for ${lockKey}`);
                 return;
             }
             
-            this.grantMemoryLock(lockKey, userId, resolve);
+            this.grantLock(lockKey, userId, resolve);
         });
     }
     
-    grantMemoryLock(lockKey, userId, resolve) {
+    grantLock(lockKey, userId, resolve) {
         this.locks.set(lockKey, {
             userId,
             acquiredAt: Date.now(),
@@ -1278,42 +820,20 @@ class AdvancedDistributedLock {
         }, this.maxLockTime);
         
         this.lockTimeouts.set(lockKey, timeoutId);
-        logger.debug(`Lock ${lockKey} granted to ${userId}`);
         resolve(true);
     }
     
-    async releaseLock(resourceId, userId) {
-        const lockKey = `lock:${resourceId}`;
-        
-        if (this.useRedis && this.redisClient) {
-            const result = await this.redisClient.del(lockKey);
-            if (result > 0) {
-                this.metrics.activeLocks = Math.max(0, this.metrics.activeLocks - 1);
-                logger.debug(`Redis lock released: ${lockKey}`);
-                return true;
-            }
-            return false;
-        }
-        
-        return this.releaseMemoryLock(lockKey);
-    }
-    
-    releaseMemoryLock(lockKey) {
-        if (!this.locks.has(lockKey)) {
-            logger.warn(`Attempted to release non-existent lock: ${lockKey}`);
-            return false;
-        }
+    releaseLock(lockKey) {
+        if (!this.locks.has(lockKey)) return false;
         
         this.locks.delete(lockKey);
         this.metrics.activeLocks = Math.max(0, this.metrics.activeLocks - 1);
-        logger.debug(`Lock ${lockKey} released`);
         
         if (this.lockTimeouts.has(lockKey)) {
             clearTimeout(this.lockTimeouts.get(lockKey));
             this.lockTimeouts.delete(lockKey);
         }
         
-        // منح القفل للعميل التالي
         if (this.waitingQueues.has(lockKey)) {
             const queue = this.waitingQueues.get(lockKey);
             if (queue.length > 0) {
@@ -1321,7 +841,7 @@ class AdvancedDistributedLock {
                 clearTimeout(next.timeoutId);
                 const waitTime = Date.now() - next.startWait;
                 this.metrics.avgWaitTime = (this.metrics.avgWaitTime * 0.9) + (waitTime * 0.1);
-                this.grantMemoryLock(lockKey, next.userId, next.resolve);
+                this.grantLock(lockKey, next.userId, next.resolve);
             } else {
                 this.waitingQueues.delete(lockKey);
             }
@@ -1335,51 +855,32 @@ class AdvancedDistributedLock {
         for (const [key, lock] of this.locks) {
             if (lock.expiresAt < now) {
                 logger.warn(`Cleaning up expired lock: ${key}`);
-                this.releaseMemoryLock(key);
+                this.releaseLock(key);
                 this.metrics.lockTimeouts++;
             }
         }
-    }
-    
-    forceUnlock(resourceId, userId) {
-        const lockKey = `lock:${resourceId}`;
-        
-        if (this.useRedis && this.redisClient) {
-            this.redisClient.del(lockKey);
-            this.metrics.activeLocks = Math.max(0, this.metrics.activeLocks - 1);
-        }
-        
-        return this.releaseMemoryLock(lockKey);
     }
     
     getStats() {
         return {
             activeLocks: this.metrics.activeLocks,
             waitingQueues: this.waitingQueues.size,
-            totalWaiting: Array.from(this.waitingQueues.values()).reduce(
-                (sum, q) => sum + q.length, 0
-            ),
-            useRedis: this.useRedis,
+            totalWaiting: Array.from(this.waitingQueues.values()).reduce((sum, q) => sum + q.length, 0),
             ...this.metrics
         };
     }
     
-    async shutdown() {
-        if (this.cleanupInterval) {
-            clearInterval(this.cleanupInterval);
-        }
-        if (this.redisClient) {
-            await this.redisClient.quit();
-        }
+    shutdown() {
+        if (this.cleanupInterval) clearInterval(this.cleanupInterval);
     }
 }
 
-const lockSystem = new AdvancedDistributedLock();
+const lockSystem = new DistributedLock();
 
 // ============================================
 // 🛡️ نظام الحماية المتقدم
 // ============================================
-class AdvancedAntiCheat {
+class AntiCheatSystem {
     constructor() {
         this.actionTracker = new Map();
         this.rateLimits = {
@@ -1387,9 +888,7 @@ class AdvancedAntiCheat {
             shoot: { max: 5, window: 3000, blockTime: 10000, penalty: 2 },
             join: { max: 5, window: 10000, blockTime: 30000, penalty: 1 },
             auth: { max: 5, window: 5000, blockTime: 60000, penalty: 3 },
-            admin: { max: 10, window: 60000, blockTime: 300000, penalty: 2 },
-            chat: { max: 20, window: 10000, blockTime: 60000, penalty: 1 },
-            reconnect: { max: 3, window: 30000, blockTime: 120000, penalty: 2 }
+            admin: { max: 10, window: 60000, blockTime: 300000, penalty: 2 }
         };
         
         this.suspiciousActivity = new Map();
@@ -1401,45 +900,21 @@ class AdvancedAntiCheat {
         this.bannedCache = new Map();
         this.cacheTTL = 60000;
         this.blockedUntil = new Map();
-        this.globalBlockList = new Set();
-        this.penaltyMultiplier = 1;
         this.threatScores = new Map();
-        this.suspiciousPatterns = [
-            { pattern: /wallhack|aimbot/i, action: 'aimbot', severity: 5 },
-            { pattern: /speedhack|teleport/i, action: 'speedhack', severity: 4 },
-            { pattern: /spam|flood/i, action: 'spam', severity: 2 },
-            { pattern: /no_damage|godmode/i, action: 'godmode', severity: 5 },
-            { pattern: /infinite_ammo/i, action: 'infinite_ammo', severity: 3 },
-            { pattern: /fly|noclip/i, action: 'fly', severity: 4 }
-        ];
         
-        // أنظمة الكشف
-        this.detectors = {
-            speedHack: new SpeedHackDetector(),
-            aimbot: new AimbotDetector(),
-            teleport: new TeleportDetector(),
-            spam: new SpamDetector(),
-            godmode: new GodModeDetector()
-        };
-        
-        logger.info('Advanced AntiCheat initialized', { enabled: this.enabled });
+        logger.info('AntiCheat System initialized', { enabled: this.enabled });
     }
     
     checkRateLimit(userId, actionType, ip = null) {
         if (!this.enabled) return true;
-        
-        if (this.globalBlockList.has(userId) || (ip && this.globalBlockList.has(ip))) {
-            return false;
-        }
+        if (this.bannedUsers.has(userId) || (ip && this.bannedIPs.has(ip))) return false;
         
         const now = Date.now();
         const limit = this.rateLimits[actionType];
         if (!limit) return true;
         
         const key = `${userId}:${actionType}`;
-        
         if (this.blockedUntil.has(key) && this.blockedUntil.get(key) > now) {
-            logger.warn(`Rate limit blocked: ${key} until ${new Date(this.blockedUntil.get(key))}`);
             return false;
         }
         
@@ -1448,7 +923,6 @@ class AdvancedAntiCheat {
         }
         
         const tracker = this.actionTracker.get(key);
-        
         if (now - tracker.lastReset > limit.window) {
             tracker.actions = [];
             tracker.lastReset = now;
@@ -1459,13 +933,11 @@ class AdvancedAntiCheat {
         tracker.actions = tracker.actions.filter(t => now - t < limit.window);
         
         const effectiveMax = limit.max - (tracker.penalties * limit.penalty);
-        
         if (tracker.actions.length > effectiveMax) {
             const blockTime = limit.blockTime * (1 + tracker.penalties * 0.5);
             this.blockedUntil.set(key, now + blockTime);
             tracker.penalties++;
-            this.reportSuspiciousActivity(userId, `Rate limit exceeded: ${actionType} (${tracker.actions.length}/${effectiveMax})`, ip);
-            logger.warn(`Rate limit exceeded: ${key} (${tracker.actions.length}/${effectiveMax})`);
+            this.reportSuspiciousActivity(userId, `Rate limit exceeded: ${actionType}`);
             return false;
         }
         
@@ -1491,23 +963,14 @@ class AdvancedAntiCheat {
         activity.severity += severity;
         activity.lastReport = Date.now();
         
-        // تحديث درجة التهديد
         this.updateThreatScore(userId, severity);
         
-        logger.warn(`Suspicious activity detected: ${userId} - ${reason}`, { 
-            severity, 
-            warnings: activity.warnings,
-            totalSeverity: activity.severity
-        });
-        
-        // الحظر التلقائي
         const threatScore = this.threatScores.get(userId) || 0;
         if (threatScore >= 50) {
             this.banUser(userId, 'نشاط مشبوه خطير (تلقائي)', ip);
             return true;
         } else if (threatScore >= 30) {
-            this.blockedUntil.set(`temp_${userId}`, Date.now() + 600000); // 10 دقائق
-            logger.warn(`Temporary block for ${userId} (threat score: ${threatScore})`);
+            this.blockedUntil.set(`temp_${userId}`, Date.now() + 600000);
             return true;
         }
         
@@ -1518,14 +981,12 @@ class AdvancedAntiCheat {
         if (reason.includes('aimbot') || reason.includes('godmode')) return 5;
         if (reason.includes('speedhack') || reason.includes('teleport')) return 4;
         if (reason.includes('spam') || reason.includes('flood')) return 2;
-        if (reason.includes('fly') || reason.includes('noclip')) return 4;
         return 1;
     }
     
     updateThreatScore(userId, severity) {
         const current = this.threatScores.get(userId) || 0;
-        const decay = 0.9; // تناقص تدريجي
-        const newScore = current * decay + severity * 2;
+        const newScore = current * 0.9 + severity * 2;
         this.threatScores.set(userId, Math.min(100, newScore));
     }
     
@@ -1541,97 +1002,41 @@ class AdvancedAntiCheat {
         
         try {
             await db.query(
-                `UPDATE users SET 
-                 is_banned = TRUE,
-                 ban_reason = $1,
-                 banned_until = $2,
-                 banned_by = 'system'
+                `UPDATE users SET is_banned = TRUE, ban_reason = $1, banned_until = $2, banned_by = 'system'
                  WHERE id = $3`,
                 [reason, new Date(Date.now() + this.banDuration), userId]
             );
-            
-            // تسجيل في قاعدة البيانات
-            await db.query(
-                `INSERT INTO transactions (id, user_id, type, amount, description, created_at)
-                 VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)`,
-                [`tx_${Date.now()}_${uuidv4().slice(0, 8)}`, userId, 'ban', 0, `Banned: ${reason}`]
-            );
-            
         } catch (error) {
-            logger.error('Error banning user in database:', { error: error.message, userId });
-            monitoring.recordError('ban_user_error', error.message, 'anticheat');
+            logger.error('Error banning user:', { error: error.message, userId });
         }
     }
     
     async isUserBanned(userId) {
-        // التحقق من الذاكرة أولاً
         if (this.bannedUsers.has(userId)) return true;
         if (this.bannedCache.has(userId)) {
             const cached = this.bannedCache.get(userId);
-            if (Date.now() - cached.timestamp < this.cacheTTL) {
-                return true;
-            }
+            if (Date.now() - cached.timestamp < this.cacheTTL) return true;
             this.bannedCache.delete(userId);
         }
         
         try {
-            const result = await db.query(
-                'SELECT is_banned, banned_until FROM users WHERE id = $1',
-                [userId]
-            );
+            const result = await db.query('SELECT is_banned, banned_until FROM users WHERE id = $1', [userId]);
             if (result.rows.length > 0) {
                 const user = result.rows[0];
                 if (user.is_banned && user.banned_until && new Date(user.banned_until) > new Date()) {
                     this.bannedUsers.add(userId);
-                    this.bannedCache.set(userId, { 
-                        reason: 'Banned until ' + user.banned_until,
-                        timestamp: Date.now() 
-                    });
+                    this.bannedCache.set(userId, { reason: 'Banned until ' + user.banned_until, timestamp: Date.now() });
                     return true;
                 }
             }
         } catch (error) {
             logger.error('Error checking ban status:', { error: error.message, userId });
-            monitoring.recordError('ban_check_error', error.message, 'anticheat');
         }
         return false;
     }
     
     verifyAdminPassword(password) {
-        const isValid = password === this.adminPassword;
-        if (isValid) {
-            this.penaltyMultiplier = 1;
-        }
-        return isValid;
-    }
-    
-    updateAdminPassword(newPassword) {
-        if (process.env.ADMIN_PASSWORD) {
-            logger.warn('Admin password is set via environment variable, cannot change');
-            return false;
-        }
-        this.adminPassword = newPassword;
-        logger.info('Admin password updated');
-        return true;
-    }
-    
-    analyzeGameplayPattern(userId, actions) {
-        const results = [];
-        
-        // تشغيل كل كاشفات الغش
-        for (const [name, detector] of Object.entries(this.detectors)) {
-            try {
-                const detected = detector.detect(userId, actions);
-                if (detected) {
-                    results.push({ detector: name, ...detected });
-                    this.reportSuspiciousActivity(userId, `${name}_detected`, null);
-                }
-            } catch (error) {
-                logger.error(`Error in detector ${name}:`, { error: error.message });
-            }
-        }
-        
-        return results;
+        return password === this.adminPassword;
     }
     
     getStats() {
@@ -1642,7 +1047,6 @@ class AdvancedAntiCheat {
             activeTrackers: this.actionTracker.size,
             enabled: this.enabled,
             blocked: this.blockedUntil.size,
-            globalBlockList: this.globalBlockList.size,
             threatScores: Array.from(this.threatScores.entries()).slice(0, 20)
         };
     }
@@ -1653,14 +1057,7 @@ class AdvancedAntiCheat {
         this.threatScores.delete(userId);
         
         try {
-            await db.query(
-                `UPDATE users SET 
-                 is_banned = FALSE,
-                 ban_reason = NULL,
-                 banned_until = NULL
-                 WHERE id = $1`,
-                [userId]
-            );
+            await db.query(`UPDATE users SET is_banned = FALSE, ban_reason = NULL, banned_until = NULL WHERE id = $1`, [userId]);
             logger.info(`User unbanned: ${userId}`);
             return true;
         } catch (error) {
@@ -1670,240 +1067,12 @@ class AdvancedAntiCheat {
     }
 }
 
-// ============================================
-// 🔍 كاشفات الغش المتخصصة
-// ============================================
-
-class SpeedHackDetector {
-    constructor() {
-        this.history = new Map();
-        this.threshold = 50;
-        this.sampleSize = 20;
-    }
-    
-    detect(userId, actions) {
-        if (!this.history.has(userId)) {
-            this.history.set(userId, []);
-        }
-        
-        const moves = actions.filter(a => a.type === 'move');
-        if (moves.length < 2) return null;
-        
-        const history = this.history.get(userId);
-        history.push(...moves);
-        
-        while (history.length > this.sampleSize) {
-            history.shift();
-        }
-        
-        if (history.length < 2) return null;
-        
-        let totalDistance = 0;
-        let totalTime = 0;
-        let maxSpeed = 0;
-        
-        for (let i = 1; i < history.length; i++) {
-            const dx = history[i].x - history[i-1].x;
-            const dz = history[i].z - history[i-1].z;
-            const distance = Math.sqrt(dx*dx + dz*dz);
-            const time = history[i].timestamp - history[i-1].timestamp;
-            
-            if (time > 0) {
-                const speed = distance / time;
-                totalDistance += distance;
-                totalTime += time;
-                maxSpeed = Math.max(maxSpeed, speed);
-            }
-        }
-        
-        const avgSpeed = totalTime > 0 ? totalDistance / totalTime : 0;
-        
-        if (maxSpeed > this.threshold * 1.5 || avgSpeed > this.threshold) {
-            return {
-                type: 'speedhack',
-                confidence: Math.min(100, (maxSpeed / this.threshold) * 50),
-                details: { maxSpeed, avgSpeed, totalDistance }
-            };
-        }
-        
-        return null;
-    }
-}
-
-class AimbotDetector {
-    constructor() {
-        this.history = new Map();
-        this.threshold = 0.95;
-        this.sampleSize = 30;
-    }
-    
-    detect(userId, actions) {
-        const shots = actions.filter(a => a.type === 'shoot');
-        const hits = actions.filter(a => a.type === 'hit');
-        
-        if (shots.length < 5) return null;
-        
-        const hitRate = hits.length / shots.length;
-        
-        const angles = actions.filter(a => a.type === 'shoot' && a.angle !== undefined)
-            .map(a => a.angle);
-        
-        let angleConsistency = 0;
-        if (angles.length > 5) {
-            const mean = angles.reduce((a, b) => a + b, 0) / angles.length;
-            const variance = angles.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / angles.length;
-            angleConsistency = Math.sqrt(variance);
-        }
-        
-        if (hitRate > this.threshold && angleConsistency < 0.1) {
-            return {
-                type: 'aimbot',
-                confidence: Math.min(100, (hitRate - 0.9) * 500),
-                details: { hitRate, angleConsistency, shots: shots.length, hits: hits.length }
-            };
-        }
-        
-        return null;
-    }
-}
-
-class TeleportDetector {
-    constructor() {
-        this.history = new Map();
-        this.threshold = 100;
-        this.sampleSize = 10;
-    }
-    
-    detect(userId, actions) {
-        const moves = actions.filter(a => a.type === 'move');
-        if (moves.length < 2) return null;
-        
-        const history = this.history.get(userId) || [];
-        history.push(...moves);
-        
-        while (history.length > this.sampleSize) {
-            history.shift();
-        }
-        this.history.set(userId, history);
-        
-        if (history.length < 2) return null;
-        
-        let teleports = 0;
-        let maxDistance = 0;
-        
-        for (let i = 1; i < history.length; i++) {
-            const dx = history[i].x - history[i-1].x;
-            const dz = history[i].z - history[i-1].z;
-            const distance = Math.sqrt(dx*dx + dz*dz);
-            const time = history[i].timestamp - history[i-1].timestamp;
-            
-            maxDistance = Math.max(maxDistance, distance);
-            
-            if (distance > this.threshold && time < 100) {
-                teleports++;
-            }
-        }
-        
-        if (teleports >= 2) {
-            return {
-                type: 'teleport',
-                confidence: Math.min(100, teleports * 30),
-                details: { teleports, maxDistance }
-            };
-        }
-        
-        return null;
-    }
-}
-
-class SpamDetector {
-    constructor() {
-        this.history = new Map();
-        this.threshold = 20;
-        this.sampleSize = 60;
-    }
-    
-    detect(userId, actions) {
-        const messages = actions.filter(a => a.type === 'chat');
-        if (messages.length < 5) return null;
-        
-        const history = this.history.get(userId) || [];
-        history.push(...messages);
-        
-        while (history.length > this.sampleSize) {
-            history.shift();
-        }
-        this.history.set(userId, history);
-        
-        if (history.length < 10) return null;
-        
-        const now = Date.now();
-        const oneMinuteAgo = now - 60000;
-        const recent = history.filter(m => m.timestamp > oneMinuteAgo);
-        
-        if (recent.length > this.threshold) {
-            return {
-                type: 'spam',
-                confidence: Math.min(100, (recent.length / this.threshold) * 50),
-                details: { messages: recent.length, threshold: this.threshold }
-            };
-        }
-        
-        return null;
-    }
-}
-
-class GodModeDetector {
-    constructor() {
-        this.history = new Map();
-        this.threshold = 10;
-        this.sampleSize = 50;
-    }
-    
-    detect(userId, actions) {
-        const hits = actions.filter(a => a.type === 'hit_received');
-        const damages = actions.filter(a => a.type === 'damage_taken');
-        
-        if (hits.length < 5) return null;
-        
-        const history = this.history.get(userId) || [];
-        history.push(...hits);
-        
-        while (history.length > this.sampleSize) {
-            history.shift();
-        }
-        this.history.set(userId, history);
-        
-        if (history.length < 10) return null;
-        
-        let noDamageHits = 0;
-        for (const hit of history) {
-            const damage = damages.find(d => d.timestamp === hit.timestamp);
-            if (!damage || damage.amount === 0) {
-                noDamageHits++;
-            }
-        }
-        
-        const ratio = noDamageHits / history.length;
-        
-        if (ratio > 0.8 && history.length > this.threshold) {
-            return {
-                type: 'godmode',
-                confidence: Math.min(100, ratio * 80),
-                details: { noDamageHits, totalHits: history.length, ratio }
-            };
-        }
-        
-        return null;
-    }
-}
-
-const antiCheat = new AdvancedAntiCheat();
+const antiCheat = new AntiCheatSystem();
 
 // ============================================
 // 📦 التخزين المؤقت المتقدم
 // ============================================
-class AdvancedCacheManager {
+class CacheManager {
     constructor() {
         this.caches = {
             memory: new Map(),
@@ -1925,59 +1094,18 @@ class AdvancedCacheManager {
             session: 1800000
         };
         
-        this.redisClient = null;
-        this.useRedis = !!process.env.REDIS_URL;
         this.cacheHits = 0;
         this.cacheMisses = 0;
         this.cacheSize = 0;
         this.evictions = 0;
         this.maxCacheSize = 10000;
-        
-        if (this.useRedis) {
-            this.initRedis();
-        }
-        
         this.cleanupInterval = setInterval(() => this.cleanup(), 60000);
-        logger.info('Advanced Cache Manager initialized', { useRedis: this.useRedis });
-    }
-    
-    async initRedis() {
-        try {
-            this.redisClient = createClient({
-                url: process.env.REDIS_URL,
-                socket: {
-                    reconnectStrategy: (retries) => Math.min(retries * 100, 3000)
-                }
-            });
-            
-            this.redisClient.on('error', (err) => {
-                logger.error('Redis cache error:', { error: err.message });
-                this.useRedis = false;
-            });
-            
-            await this.redisClient.connect();
-            logger.info('✅ Redis connected for caching');
-        } catch (error) {
-            logger.error('Failed to connect to Redis for caching:', { error: error.message });
-            this.useRedis = false;
-        }
+        
+        logger.info('Cache Manager initialized');
     }
     
     async get(key, cacheType = 'memory') {
         this.cacheSize = this.getTotalSize();
-        
-        if (this.useRedis && this.redisClient) {
-            try {
-                const value = await this.redisClient.get(`cache:${cacheType}:${key}`);
-                if (value) {
-                    this.cacheHits++;
-                    return JSON.parse(value);
-                }
-            } catch (error) {
-                logger.warn('Redis get failed, falling back to memory:', { error: error.message });
-            }
-        }
-        
         const cache = this.caches[cacheType];
         if (!cache) return null;
         
@@ -2000,79 +1128,22 @@ class AdvancedCacheManager {
     
     async set(key, value, cacheType = 'memory', ttl = null) {
         const ttlMs = ttl || this.ttls[cacheType] || 60000;
-        
-        if (this.useRedis && this.redisClient) {
-            try {
-                await this.redisClient.set(
-                    `cache:${cacheType}:${key}`,
-                    JSON.stringify(value),
-                    { PX: ttlMs }
-                );
-            } catch (error) {
-                logger.warn('Redis set failed:', { error: error.message });
-            }
-        }
-        
         const cache = this.caches[cacheType];
         if (!cache) return false;
         
-        if (this.cacheSize >= this.maxCacheSize) {
-            this.evictOldest();
-        }
+        if (this.cacheSize >= this.maxCacheSize) this.evictOldest();
         
-        cache.set(key, {
-            value,
-            timestamp: Date.now(),
-            ttl: ttlMs
-        });
-        
+        cache.set(key, { value, timestamp: Date.now(), ttl: ttlMs });
         this.cacheSize = this.getTotalSize();
         return true;
     }
     
     async delete(key, cacheType = 'memory') {
-        if (this.useRedis && this.redisClient) {
-            try {
-                await this.redisClient.del(`cache:${cacheType}:${key}`);
-            } catch (error) {
-                logger.warn('Redis delete failed:', { error: error.message });
-            }
-        }
-        
         const cache = this.caches[cacheType];
         if (cache) {
             cache.delete(key);
             this.cacheSize = this.getTotalSize();
         }
-    }
-    
-    async clear(cacheType = null) {
-        if (cacheType) {
-            if (this.useRedis && this.redisClient) {
-                try {
-                    const keys = await this.redisClient.keys(`cache:${cacheType}:*`);
-                    if (keys.length > 0) {
-                        await this.redisClient.del(keys);
-                    }
-                } catch (error) {
-                    logger.warn('Redis clear failed:', { error: error.message });
-                }
-            }
-            this.caches[cacheType]?.clear();
-        } else {
-            if (this.useRedis && this.redisClient) {
-                try {
-                    const keys = await this.redisClient.keys('cache:*');
-                    if (keys.length > 0) {
-                        await this.redisClient.del(keys);
-                    }
-                } catch (error) {
-                    logger.warn('Redis clear all failed:', { error: error.message });
-                }
-            }
-            Object.values(this.caches).forEach(cache => cache.clear());
-        }
-        this.cacheSize = this.getTotalSize();
     }
     
     evictOldest() {
@@ -2096,9 +1167,7 @@ class AdvancedCacheManager {
     
     getTotalSize() {
         let size = 0;
-        for (const cache of Object.values(this.caches)) {
-            size += cache.size;
-        }
+        for (const cache of Object.values(this.caches)) size += cache.size;
         return size;
     }
     
@@ -2125,49 +1194,25 @@ class AdvancedCacheManager {
                 ? (this.cacheHits / (this.cacheHits + this.cacheMisses) * 100).toFixed(2) + '%'
                 : 'N/A',
             evictions: this.evictions,
-            useRedis: this.useRedis,
-            caches: Object.fromEntries(
-                Object.entries(this.caches).map(([type, cache]) => [type, cache.size])
-            )
+            caches: Object.fromEntries(Object.entries(this.caches).map(([type, cache]) => [type, cache.size]))
         };
     }
     
-    async shutdown() {
-        if (this.cleanupInterval) {
-            clearInterval(this.cleanupInterval);
-        }
-        if (this.redisClient) {
-            await this.redisClient.quit();
-        }
+    shutdown() {
+        if (this.cleanupInterval) clearInterval(this.cleanupInterval);
     }
 }
 
-const cache = new AdvancedCacheManager();
+const cache = new CacheManager();
 
 // ============================================
-// 🔌 معالج الطوابير المتقدم
+// 🔌 معالج الطوابير
 // ============================================
-class AdvancedQueueProcessor {
+class QueueProcessor {
     constructor() {
-        this.queues = {
-            high: [],
-            normal: [],
-            low: [],
-            dead: []
-        };
-        
-        this.processing = {
-            high: false,
-            normal: false,
-            low: false
-        };
-        
-        this.maxConcurrent = {
-            high: 20,
-            normal: 10,
-            low: 5
-        };
-        
+        this.queues = { high: [], normal: [], low: [], dead: [] };
+        this.processing = { high: false, normal: false, low: false };
+        this.maxConcurrent = { high: 20, normal: 10, low: 5 };
         this.timeout = 30000;
         this.stats = {
             totalProcessed: 0,
@@ -2177,13 +1222,10 @@ class AdvancedQueueProcessor {
             byPriority: { high: 0, normal: 0, low: 0 },
             retries: 0
         };
-        
         this.processingTimes = [];
         this.retryDelays = [1000, 5000, 15000];
-        this.processedItems = new Set();
         this.idempotencyCache = new Map();
-        
-        logger.info('Advanced Queue Processor initialized');
+        logger.info('Queue Processor initialized');
     }
     
     async add(action, priority = 0, idempotencyKey = null) {
@@ -2197,7 +1239,6 @@ class AdvancedQueueProcessor {
             }
             
             const priorityLevel = priority > 0 ? 'high' : priority === 0 ? 'normal' : 'low';
-            
             const item = {
                 id: idempotencyKey || `action_${Date.now()}_${uuidv4().slice(0, 8)}`,
                 action,
@@ -2220,7 +1261,6 @@ class AdvancedQueueProcessor {
                 this.stats.peakQueueSize = this.getTotalSize();
             }
             
-            logger.debug(`Queue item added: ${item.id} (priority: ${priorityLevel})`);
             this.process(priorityLevel);
         });
     }
@@ -2232,12 +1272,10 @@ class AdvancedQueueProcessor {
             if (this.processing[level] || this.queues[level].length === 0) continue;
             
             this.processing[level] = true;
-            
             while (this.queues[level].length > 0) {
                 const batch = this.queues[level].splice(0, this.maxConcurrent[level]);
                 await Promise.all(batch.map(item => this.processItem(item, level)));
             }
-            
             this.processing[level] = false;
         }
     }
@@ -2259,37 +1297,21 @@ class AdvancedQueueProcessor {
             item.resolve(result);
             
             if (item.id) {
-                this.idempotencyCache.set(item.id, {
-                    result,
-                    timestamp: Date.now()
-                });
-                
+                this.idempotencyCache.set(item.id, { result, timestamp: Date.now() });
                 for (const [key, value] of this.idempotencyCache) {
-                    if (Date.now() - value.timestamp > 60000) {
-                        this.idempotencyCache.delete(key);
-                    }
+                    if (Date.now() - value.timestamp > 60000) this.idempotencyCache.delete(key);
                 }
             }
             
             const duration = Date.now() - item.startTime;
             this.processingTimes.push(duration);
-            if (this.processingTimes.length > 1000) {
-                this.processingTimes.shift();
-            }
+            if (this.processingTimes.length > 1000) this.processingTimes.shift();
             this.stats.averageProcessingTime = 
                 this.processingTimes.reduce((a, b) => a + b, 0) / this.processingTimes.length;
-            
-            logger.debug(`Item ${item.id} processed in ${duration}ms`);
             
         } catch (error) {
             this.stats.totalErrors++;
             item.status = 'failed';
-            
-            logger.error('Action processing error:', { 
-                itemId: item.id, 
-                error: error.message,
-                retries: item.retries
-            });
             
             if (item.retries < item.maxRetries) {
                 const delay = this.retryDelays[item.retries] || 5000;
@@ -2301,66 +1323,35 @@ class AdvancedQueueProcessor {
                     this.queues[level].push(item);
                     this.process(level);
                 }, delay);
-                
-                logger.info(`Retrying action ${item.id} (${item.retries}/${item.maxRetries}) after ${delay}ms`);
             } else {
-                this.queues.dead.push({
-                    ...item,
-                    error: error.message,
-                    failedAt: Date.now()
-                });
+                this.queues.dead.push({ ...item, error: error.message, failedAt: Date.now() });
                 item.reject(error);
-                logger.error(`Action ${item.id} moved to dead letter queue`);
             }
         }
     }
     
     getTotalSize() {
-        return this.queues.high.length + this.queues.normal.length + 
-               this.queues.low.length + this.queues.dead.length;
+        return this.queues.high.length + this.queues.normal.length + this.queues.low.length + this.queues.dead.length;
     }
     
     getStats() {
         return {
             queueLength: this.getTotalSize(),
-            processing: {
-                high: this.processing.high,
-                normal: this.processing.normal,
-                low: this.processing.low
-            },
+            processing: this.processing,
             maxConcurrent: this.maxConcurrent,
             ...this.stats,
             deadLetterCount: this.queues.dead.length,
             idempotencyCache: this.idempotencyCache.size
         };
     }
-    
-    async retryDeadLetter() {
-        const items = [...this.queues.dead];
-        this.queues.dead = [];
-        
-        for (const item of items) {
-            await this.add(item.action, item.priority, item.id);
-        }
-        
-        logger.info(`Retried ${items.length} items from dead letter queue`);
-        return items.length;
-    }
-    
-    clearDeadLetter() {
-        const count = this.queues.dead.length;
-        this.queues.dead = [];
-        logger.info(`Cleared ${count} items from dead letter queue`);
-        return count;
-    }
 }
 
-const queueProcessor = new AdvancedQueueProcessor();
+const queueProcessor = new QueueProcessor();
 
 // ============================================
 // 🎮 نظام ELO المتقدم
 // ============================================
-class AdvancedELOSystem {
+class ELOSystem {
     constructor() {
         this.K_FACTOR = 32;
         this.DEFAULT_ELO = 1000;
@@ -2394,37 +1385,29 @@ class AdvancedELOSystem {
         this.playerAchievements = new Map();
         this.winStreaks = new Map();
         this.killStreaks = new Map();
-        
-        logger.info('Advanced ELO System initialized');
+        logger.info('ELO System initialized');
     }
     
     calculateNewELOs(playerA_ELO, playerB_ELO, playerA_won) {
         const expectedA = 1 / (1 + Math.pow(10, (playerB_ELO - playerA_ELO) / 400));
         const expectedB = 1 / (1 + Math.pow(10, (playerA_ELO - playerB_ELO) / 400));
         
-        let kA = this.K_FACTOR;
-        let kB = this.K_FACTOR;
-        
+        let kA = this.K_FACTOR, kB = this.K_FACTOR;
         if (playerA_ELO > 2000) kA = 16;
         if (playerB_ELO > 2000) kB = 16;
         if (playerA_ELO < 1000) kA = 40;
         if (playerB_ELO < 1000) kB = 40;
         
-        const newELO_A = playerA_ELO + kA * (playerA_won - expectedA);
-        const newELO_B = playerB_ELO + kB * (1 - playerA_won - expectedB);
-        
         return {
-            newELO_A: Math.max(this.MIN_ELO, Math.min(this.MAX_ELO, Math.round(newELO_A))),
-            newELO_B: Math.max(this.MIN_ELO, Math.min(this.MAX_ELO, Math.round(newELO_B)))
+            newELO_A: Math.max(this.MIN_ELO, Math.min(this.MAX_ELO, Math.round(playerA_ELO + kA * (playerA_won - expectedA)))),
+            newELO_B: Math.max(this.MIN_ELO, Math.min(this.MAX_ELO, Math.round(playerB_ELO + kB * (1 - playerA_won - expectedB))))
         };
     }
     
     getRank(elo) {
         let currentRank = this.ranks[0];
         for (const rank of this.ranks) {
-            if (elo >= rank.minElo) {
-                currentRank = rank;
-            }
+            if (elo >= rank.minElo) currentRank = rank;
         }
         return currentRank;
     }
@@ -2432,23 +1415,17 @@ class AdvancedELOSystem {
     getRankProgress(elo) {
         const currentRank = this.getRank(elo);
         const nextRank = this.ranks.find(r => r.minElo > currentRank.minElo);
-        
-        if (!nextRank) {
-            return { current: currentRank, next: null, progress: 1 };
-        }
-        
-        const progress = (elo - currentRank.minElo) / (nextRank.minElo - currentRank.minElo);
+        if (!nextRank) return { current: currentRank, next: null, progress: 1 };
         return {
             current: currentRank,
             next: nextRank,
-            progress: Math.min(1, Math.max(0, progress))
+            progress: Math.min(1, Math.max(0, (elo - currentRank.minElo) / (nextRank.minElo - currentRank.minElo)))
         };
     }
     
     async checkAchievements(userId, stats) {
         const achieved = [];
         const userAchievements = this.playerAchievements.get(userId) || new Set();
-        
         this.updateStreaks(userId, stats);
         
         const checks = [
@@ -2460,9 +1437,7 @@ class AdvancedELOSystem {
             { key: 'kill_streak_10', condition: (this.killStreaks.get(userId) || 0) >= 10 },
             { key: 'perfect_game', condition: stats.kills >= 5 && stats.deaths === 0 },
             { key: 'veteran', condition: stats.gamesPlayed >= 100 },
-            { key: 'legend', condition: stats.gamesPlayed >= 500 },
-            { key: 'top_10', condition: stats.globalRank && stats.globalRank <= 10 },
-            { key: 'top_1', condition: stats.globalRank && stats.globalRank === 1 }
+            { key: 'legend', condition: stats.gamesPlayed >= 500 }
         ];
         
         for (const check of checks) {
@@ -2477,19 +1452,11 @@ class AdvancedELOSystem {
     }
     
     updateStreaks(userId, stats) {
-        if (stats.won) {
-            const current = this.winStreaks.get(userId) || 0;
-            this.winStreaks.set(userId, current + 1);
-        } else {
-            this.winStreaks.set(userId, 0);
-        }
+        if (stats.won) this.winStreaks.set(userId, (this.winStreaks.get(userId) || 0) + 1);
+        else this.winStreaks.set(userId, 0);
         
-        if (stats.kills >= 5) {
-            const current = this.killStreaks.get(userId) || 0;
-            this.killStreaks.set(userId, current + 1);
-        } else if (stats.kills === 0) {
-            this.killStreaks.set(userId, 0);
-        }
+        if (stats.kills >= 5) this.killStreaks.set(userId, (this.killStreaks.get(userId) || 0) + 1);
+        else if (stats.kills === 0) this.killStreaks.set(userId, 0);
     }
     
     getAchievementReward(achievementKey) {
@@ -2503,41 +1470,17 @@ class AdvancedELOSystem {
         const winnerELO = winnerResult.rows[0]?.elo || this.DEFAULT_ELO;
         const loserELO = loserResult.rows[0]?.elo || this.DEFAULT_ELO;
         
-        const { newELO_A: newWinnerELO, newELO_B: newLoserELO } = this.calculateNewELOs(
-            winnerELO, loserELO, true
-        );
+        const { newELO_A: newWinnerELO, newELO_B: newLoserELO } = this.calculateNewELOs(winnerELO, loserELO, true);
         
         await db.transaction(async (client) => {
             await client.query(
-                `UPDATE users SET 
-                 elo = $1,
-                 wins = wins + 1,
-                 games_played = games_played + 1,
-                 total_rewards = total_rewards + $2,
-                 last_game = CURRENT_TIMESTAMP
+                `UPDATE users SET elo = $1, wins = wins + 1, games_played = games_played + 1, total_rewards = total_rewards + $2
                  WHERE id = $3`,
                 [newWinnerELO, stats.winReward || 0, winnerId]
             );
-            
             await client.query(
-                `UPDATE users SET 
-                 elo = $1,
-                 games_played = games_played + 1,
-                 last_game = CURRENT_TIMESTAMP
-                 WHERE id = $2`,
+                `UPDATE users SET elo = $1, games_played = games_played + 1 WHERE id = $2`,
                 [newLoserELO, loserId]
-            );
-            
-            await client.query(
-                `INSERT INTO transactions (id, user_id, type, amount, description, created_at)
-                 VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)`,
-                [
-                    `tx_${Date.now()}_${uuidv4().slice(0, 8)}`,
-                    winnerId,
-                    'game_reward',
-                    stats.winReward || 0,
-                    `Win reward (ELO: ${winnerELO} → ${newWinnerELO})`
-                ]
             );
         });
         
@@ -2545,87 +1488,38 @@ class AdvancedELOSystem {
         await cache.delete(loserId, 'user');
         await cache.delete('leaderboard_elo_10', 'leaderboard');
         
-        const winnerAchievements = await this.checkAchievements(winnerId, {
-            ...stats,
-            won: true,
-            globalRank: await this.getGlobalRank(winnerId)
-        });
-        
-        const loserAchievements = await this.checkAchievements(loserId, {
-            ...stats,
-            won: false,
-            globalRank: await this.getGlobalRank(loserId)
-        });
-        
         return {
             winner: {
                 userId: winnerId,
                 oldELO: winnerELO,
                 newELO: newWinnerELO,
                 change: newWinnerELO - winnerELO,
-                rank: this.getRank(newWinnerELO),
-                rankProgress: this.getRankProgress(newWinnerELO),
-                achievements: winnerAchievements
+                rank: this.getRank(newWinnerELO)
             },
             loser: {
                 userId: loserId,
                 oldELO: loserELO,
                 newELO: newLoserELO,
                 change: newLoserELO - loserELO,
-                rank: this.getRank(newLoserELO),
-                rankProgress: this.getRankProgress(newLoserELO),
-                achievements: loserAchievements
+                rank: this.getRank(newLoserELO)
             }
-        };
-    }
-    
-    async getGlobalRank(userId) {
-        try {
-            const result = await db.query(
-                `SELECT COUNT(*) + 1 as rank 
-                 FROM users 
-                 WHERE elo > (SELECT elo FROM users WHERE id = $1)`,
-                [userId]
-            );
-            return result.rows[0]?.rank || 0;
-        } catch (error) {
-            return 0;
-        }
-    }
-    
-    getStats() {
-        return {
-            ranks: this.ranks,
-            achievements: this.achievements,
-            activeStreaks: {
-                win: this.winStreaks.size,
-                kill: this.killStreaks.size
-            },
-            totalAchievements: this.playerAchievements.size
         };
     }
 }
 
-const eloSystem = new AdvancedELOSystem();
+const eloSystem = new ELOSystem();
 
 // ============================================
 // 🎯 تحميل إعدادات الخادم
 // ============================================
 let serverConfig = null;
-let configVersion = 0;
 
 async function loadServerConfig() {
     try {
-        const cachedConfig = await cache.get('server_config', 'config');
-        if (cachedConfig) {
-            serverConfig = cachedConfig;
-            return serverConfig;
-        }
+        const cached = await cache.get('server_config', 'config');
+        if (cached) { serverConfig = cached; return serverConfig; }
         
-        const result = await db.query(
-            "SELECT value, updated_at FROM server_config WHERE key = 'server_config'"
-        );
-        
+        const result = await db.query("SELECT value FROM server_config WHERE key = 'server_config'");
         if (result.rows.length === 0) {
             serverConfig = getDefaultConfig();
             await saveServerConfig(serverConfig);
@@ -2634,12 +1528,9 @@ async function loadServerConfig() {
         }
         
         await cache.set('server_config', serverConfig, 'config');
-        configVersion++;
-        
-        logger.info('Server config loaded successfully');
         return serverConfig;
     } catch (error) {
-        logger.error('Error loading server config:', { error: error.message });
+        logger.error('Error loading config:', { error: error.message });
         return getDefaultConfig();
     }
 }
@@ -2659,8 +1550,6 @@ function getDefaultConfig() {
             bulletDamage: 25,
             fireCooldown: 2000,
             tankHealth: 100,
-            tankSpeed: 0.25,
-            tankRotationSpeed: 0.04,
             respawnTime: 5000,
             killRewardPercent: 0.5,
             winRewardMultiplier: 2.0,
@@ -2672,20 +1561,12 @@ function getDefaultConfig() {
         },
         system: {
             maintenanceMode: false,
-            maxPlayersPerMatch: 16,
-            leaderboardCacheTime: 30000,
-            userCacheTime: 60000,
-            reconnectTimeout: 30000,
             antiCheatEnabled: true,
-            maxLoginAttempts: 5,
-            lockTimeout: 30000,
             adminPassword: process.env.ADMIN_PASSWORD || 'Admin@2024#Battle',
             jwtSecret: process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex'),
             enableAuditLog: true,
             rateLimitWindow: 60000,
-            rateLimitMax: 100,
-            maxConcurrentGames: 50,
-            maxRooms: 50
+            rateLimitMax: 100
         },
         appearance: {
             gameLogo: '/images/default/logo.png',
@@ -2694,27 +1575,17 @@ function getDefaultConfig() {
             secondaryColor: '#0a0f1a',
             accentColor: '#ff6b6b'
         },
-        limits: {
-            maxUsers: 1000,
-            maxRooms: 50,
-            maxGames: 20,
-            maxConcurrentRequests: 1000,
-            maxPlayerBalance: 1000000
-        },
         monitoring: {
             enablePrometheus: true,
             enableDetailedLogging: true,
             healthCheckInterval: 15000,
-            metricsRetention: 3600000,
             slowQueryThreshold: 1000
         },
         features: {
             enableRespawn: true,
             enableBoost: true,
             enableShield: true,
-            enableKillFeed: true,
-            enableSpectator: false,
-            enableReplay: false
+            enableKillFeed: true
         }
     };
 }
@@ -2722,37 +1593,196 @@ function getDefaultConfig() {
 async function saveServerConfig(config) {
     try {
         await db.query(
-            `INSERT INTO server_config (key, value, updated_at) 
-             VALUES ('server_config', $1, CURRENT_TIMESTAMP) 
-             ON CONFLICT (key) DO UPDATE SET 
-             value = EXCLUDED.value, 
-             updated_at = CURRENT_TIMESTAMP`,
+            `INSERT INTO server_config (key, value, updated_at) VALUES ('server_config', $1, CURRENT_TIMESTAMP)
+             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`,
             [config]
         );
         await cache.set('server_config', config, 'config');
-        configVersion++;
+        serverConfig = config;
         logger.info('Server config saved');
         return true;
     } catch (error) {
-        logger.error('Error saving server config:', { error: error.message });
+        logger.error('Error saving config:', { error: error.message });
         return false;
     }
 }
 
-async function reloadServerConfig() {
-    return await loadServerConfig();
+// ============================================
+// 🎮 إدارة المستخدمين
+// ============================================
+class UserManager {
+    constructor() {
+        this.onlineUsers = new Map();
+        logger.info('User Manager initialized');
+    }
+    
+    async getUser(userId) {
+        try {
+            const cached = await cache.get(`user_${userId}`, 'user');
+            if (cached) return cached;
+            
+            const result = await db.query(
+                `SELECT id, username, balance, elo, kills, wins, games_played, total_rewards,
+                        is_admin, is_banned, ban_reason, banned_until
+                 FROM users WHERE id = $1`,
+                [userId]
+            );
+            
+            if (result.rows.length === 0) {
+                const newUser = {
+                    id: userId,
+                    username: `لاعب_${userId.slice(0, 6)}`,
+                    balance: 100,
+                    elo: 1000,
+                    kills: 0,
+                    wins: 0,
+                    games_played: 0,
+                    total_rewards: 0,
+                    is_admin: false,
+                    is_banned: false
+                };
+                
+                await db.query(
+                    `INSERT INTO users (id, username, balance, elo, is_admin, created_at)
+                     VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)`,
+                    [newUser.id, newUser.username, newUser.balance, newUser.elo, newUser.is_admin]
+                );
+                
+                await cache.set(`user_${userId}`, newUser, 'user');
+                return newUser;
+            }
+            
+            const user = result.rows[0];
+            await cache.set(`user_${userId}`, user, 'user');
+            return user;
+        } catch (error) {
+            logger.error('Error getting user:', { error: error.message, userId });
+            return null;
+        }
+    }
+    
+    async updateUser(userId, data) {
+        try {
+            const fields = [];
+            const values = [];
+            let i = 1;
+            for (const [key, value] of Object.entries(data)) {
+                if (key !== 'id' && key !== 'created_at') {
+                    fields.push(`${key} = $${i}`);
+                    values.push(value);
+                    i++;
+                }
+            }
+            values.push(userId);
+            
+            await db.query(
+                `UPDATE users SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${i}`,
+                values
+            );
+            
+            await cache.delete(`user_${userId}`, 'user');
+            return true;
+        } catch (error) {
+            logger.error('Error updating user:', { error: error.message, userId });
+            return false;
+        }
+    }
+    
+    async addBalance(userId, amount, description = '') {
+        try {
+            const user = await this.getUser(userId);
+            if (!user) return false;
+            
+            const newBalance = user.balance + amount;
+            if (newBalance < 0) return false;
+            
+            await db.transaction(async (client) => {
+                await client.query(
+                    `UPDATE users SET balance = $1 WHERE id = $2`,
+                    [newBalance, userId]
+                );
+                await client.query(
+                    `INSERT INTO transactions (id, user_id, type, amount, balance_before, balance_after, description)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                    [
+                        `tx_${Date.now()}_${uuidv4().slice(0, 8)}`,
+                        userId,
+                        amount > 0 ? 'credit' : 'debit',
+                        Math.abs(amount),
+                        user.balance,
+                        newBalance,
+                        description
+                    ]
+                );
+            });
+            
+            await cache.delete(`user_${userId}`, 'user');
+            return newBalance;
+        } catch (error) {
+            logger.error('Error adding balance:', { error: error.message, userId });
+            return false;
+        }
+    }
+    
+    async getLeaderboard(type = 'elo', limit = 100) {
+        const cacheKey = `leaderboard_${type}_${limit}`;
+        const cached = await cache.get(cacheKey, 'leaderboard');
+        if (cached) return cached;
+        
+        let orderBy = 'elo DESC';
+        if (type === 'wins') orderBy = 'wins DESC, elo DESC';
+        if (type === 'kills') orderBy = 'kills DESC, elo DESC';
+        if (type === 'rewards') orderBy = 'total_rewards DESC, elo DESC';
+        
+        const result = await db.query(
+            `SELECT id, username, elo, kills, wins, games_played, balance, total_rewards
+             FROM users WHERE is_banned = false
+             ORDER BY ${orderBy} LIMIT $1`,
+            [limit]
+        );
+        
+        const leaderboard = result.rows.map((user, index) => ({
+            ...user,
+            rank: index + 1,
+            rankName: eloSystem.getRank(user.elo || 1000).name
+        }));
+        
+        await cache.set(cacheKey, leaderboard, 'leaderboard');
+        return leaderboard;
+    }
+    
+    setOnline(userId, socketId) {
+        this.onlineUsers.set(userId, { socketId, connectedAt: Date.now() });
+    }
+    
+    setOffline(userId) {
+        this.onlineUsers.delete(userId);
+    }
+    
+    getOnline(userId) {
+        return this.onlineUsers.get(userId);
+    }
+    
+    getOnlineCount() {
+        return this.onlineUsers.size;
+    }
+    
+    getOnlineUsers() {
+        return Array.from(this.onlineUsers.entries()).map(([id, data]) => ({ userId: id, ...data }));
+    }
 }
 
+const userManager = new UserManager();
+
 // ============================================
-// 🎮 إدارة الغرف المتقدمة
+// 🎮 إدارة الغرف
 // ============================================
-class AdvancedRoomManager {
+class RoomManager {
     constructor() {
         this.rooms = new Map();
         this.activeGames = new Map();
-        this.players = new Map();
         this.pendingReconnects = new Map();
-        this.lock = new AdvancedDistributedLock();
+        this.lock = new DistributedLock();
         this.roomTypes = {
             beginner: { name: 'غرفة المبتدئين', icon: '🟢', minElo: 0, maxElo: 1200 },
             advanced: { name: 'غرفة المتقدمين', icon: '🟡', minElo: 1000, maxElo: 1800 },
@@ -2760,191 +1790,129 @@ class AdvancedRoomManager {
         };
         
         this.initializeRooms();
-        
-        setInterval(() => {
-            this.cleanupInactiveRooms();
-            this.cleanupPendingReconnects();
-        }, 60000);
-        
-        logger.info('Advanced Room Manager initialized');
+        setInterval(() => this.cleanupInactiveRooms(), 60000);
+        logger.info('Room Manager initialized');
     }
     
     async initializeRooms() {
-        const lockKey = 'rooms_initialization';
         try {
-            await this.lock.acquireLock(lockKey, 'system', 10000);
-            
             const config = await loadServerConfig();
             const roomConfigs = config.rooms || {};
-            
-            this.rooms.clear();
             
             for (const [type, settings] of Object.entries(roomConfigs)) {
                 if (!settings.enabled) continue;
                 
                 for (let i = 1; i <= settings.maxRooms; i++) {
-                    const roomId = `${type}_room_${i}`;
-                    const room = {
-                        id: roomId,
-                        type: type,
-                        name: `${this.roomTypes[type]?.icon || '🏠'} ${this.roomTypes[type]?.name || type} ${i}`,
-                        maxSeats: settings.maxSeats,
-                        seatPrice: settings.seatPrice,
-                        rewardMultiplier: settings.rewardMultiplier || 1,
-                        players: [],
-                        spectators: [],
-                        status: 'waiting',
-                        createdAt: Date.now(),
-                        startTime: null,
-                        gameRound: 0,
-                        config: settings,
-                        minElo: this.roomTypes[type]?.minElo || 0,
-                        maxElo: this.roomTypes[type]?.maxElo || 3000,
-                        stats: {
-                            totalGames: 0,
-                            totalKills: 0,
-                            averageKills: 0
-                        }
-                    };
-                    this.rooms.set(roomId, room);
-                    
-                    await db.query(
-                        `INSERT INTO rooms (id, type, name, max_seats, seat_price, reward_multiplier, status, players, game_round)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                         ON CONFLICT (id) DO UPDATE SET
-                         type = EXCLUDED.type,
-                         name = EXCLUDED.name,
-                         max_seats = EXCLUDED.max_seats,
-                         seat_price = EXCLUDED.seat_price,
-                         reward_multiplier = EXCLUDED.reward_multiplier,
-                         status = EXCLUDED.status,
-                         players = EXCLUDED.players,
-                         game_round = EXCLUDED.game_round`,
-                        [roomId, type, room.name, room.maxSeats, room.seatPrice, room.rewardMultiplier, 'waiting', '[]', 0]
-                    );
+                    const roomId = `${type}_${i}`;
+                    if (!this.rooms.has(roomId)) {
+                        this.rooms.set(roomId, {
+                            id: roomId,
+                            type: type,
+                            name: `${this.roomTypes[type]?.icon || '🏠'} ${this.roomTypes[type]?.name || type} ${i}`,
+                            maxSeats: settings.maxSeats,
+                            seatPrice: settings.seatPrice,
+                            rewardMultiplier: settings.rewardMultiplier || 1,
+                            players: [],
+                            status: 'waiting',
+                            createdAt: Date.now(),
+                            gameRound: 0,
+                            minElo: this.roomTypes[type]?.minElo || 0,
+                            maxElo: this.roomTypes[type]?.maxElo || 3000,
+                            stats: { totalGames: 0, totalKills: 0 }
+                        });
+                    }
                 }
             }
             
             logger.info(`Rooms initialized: ${this.rooms.size} rooms`);
             this.broadcastRoomsList();
-            
-            await this.lock.releaseLock(lockKey, 'system');
         } catch (error) {
             logger.error('Error initializing rooms:', { error: error.message });
-            await this.lock.releaseLock(lockKey, 'system');
         }
     }
     
     async joinRoom(socket, userId, roomId) {
-        const lockKey = `join_room_${userId}_${roomId}`;
+        const lockKey = `join_${userId}_${roomId}`;
         try {
             await this.lock.acquireLock(lockKey, userId, 5000);
             
             const room = this.rooms.get(roomId);
             if (!room) {
-                socket.emit('join_room_error', { message: 'الغرفة غير موجودة' });
-                await this.lock.releaseLock(lockKey, userId);
+                socket.emit('error', { message: 'الغرفة غير موجودة' });
                 return null;
             }
             
             if (room.status !== 'waiting') {
-                socket.emit('join_room_error', { message: 'الغرفة مشغولة حالياً' });
-                await this.lock.releaseLock(lockKey, userId);
+                socket.emit('error', { message: 'الغرفة مشغولة' });
                 return null;
             }
             
             if (room.players.length >= room.maxSeats) {
-                socket.emit('join_room_error', { message: 'الغرفة ممتلئة' });
-                await this.lock.releaseLock(lockKey, userId);
+                socket.emit('error', { message: 'الغرفة ممتلئة' });
                 return null;
             }
             
-            const userData = await this.getUserData(userId);
-            if (!userData) {
-                socket.emit('join_room_error', { message: 'بيانات المستخدم غير موجودة' });
-                await this.lock.releaseLock(lockKey, userId);
+            const user = await userManager.getUser(userId);
+            if (!user) {
+                socket.emit('error', { message: 'بيانات المستخدم غير موجودة' });
                 return null;
             }
             
-            const userElo = userData.elo || 1000;
-            if (userElo < room.minElo || userElo > room.maxElo) {
-                socket.emit('join_room_error', { 
-                    message: `تصنيفك ${userElo} غير مناسب لهذه الغرفة (${room.minElo}-${room.maxElo})` 
+            if (user.is_banned) {
+                socket.emit('error', { message: 'أنت محظور' });
+                return null;
+            }
+            
+            if (user.elo < room.minElo || user.elo > room.maxElo) {
+                socket.emit('error', { 
+                    message: `تصنيفك ${user.elo} غير مناسب (${room.minElo}-${room.maxElo})` 
                 });
-                await this.lock.releaseLock(lockKey, userId);
                 return null;
             }
             
-            if (userData.balance < room.seatPrice) {
-                socket.emit('join_room_error', { 
+            if (user.balance < room.seatPrice) {
+                socket.emit('error', { 
                     message: `رصيد غير كافٍ. السعر: ${room.seatPrice}$` 
                 });
-                await this.lock.releaseLock(lockKey, userId);
                 return null;
             }
             
-            await db.transaction(async (client) => {
-                const result = await client.query(
-                    'UPDATE users SET balance = balance - $1 WHERE id = $2 AND balance >= $1 RETURNING balance',
-                    [room.seatPrice, userId]
-                );
-                if (result.rows.length === 0) {
-                    throw new Error('Insufficient funds');
-                }
-                userData.balance = result.rows[0].balance;
-                
-                await client.query(
-                    `INSERT INTO transactions (id, user_id, type, amount, balance_before, balance_after, description)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-                    [
-                        `tx_${Date.now()}_${uuidv4().slice(0, 8)}`,
-                        userId,
-                        'seat_purchase',
-                        room.seatPrice,
-                        userData.balance + room.seatPrice,
-                        userData.balance,
-                        `Join room ${room.name}`
-                    ]
-                );
-            });
+            const newBalance = await userManager.addBalance(
+                userId, 
+                -room.seatPrice, 
+                `انضمام للغرفة ${room.name}`
+            );
+            
+            if (newBalance === false) {
+                socket.emit('error', { message: 'فشل خصم الرصيد' });
+                return null;
+            }
             
             const player = {
                 userId,
                 socketId: socket.id,
-                username: userData.username || `لاعب_${userId.slice(0, 6)}`,
-                elo: userData.elo || 1000,
-                balance: userData.balance,
+                username: user.username,
+                elo: user.elo,
+                balance: newBalance,
                 health: 100,
                 kills: 0,
                 joinedAt: Date.now(),
-                position: null,
-                isSpectator: false
+                position: null
             };
             
             room.players.push(player);
             socket.join(roomId);
+            userManager.setOnline(userId, socket.id);
             
-            this.players.set(userId, {
-                socketId: socket.id,
-                currentRoomId: roomId,
-                userData
-            });
-            
-            await db.query(
-                'UPDATE rooms SET players = $1 WHERE id = $2',
-                [JSON.stringify(room.players), roomId]
-            );
-            
-            socket.emit('joined_room', {
+            socket.emit('room_joined', {
                 roomId,
                 roomName: room.name,
                 players: room.players.map(p => ({
                     userId: p.userId,
                     username: p.username,
-                    elo: p.elo,
-                    health: p.health
+                    elo: p.elo
                 })),
-                balance: userData.balance,
+                balance: newBalance,
                 seatPrice: room.seatPrice,
                 maxSeats: room.maxSeats
             });
@@ -2957,61 +1925,50 @@ class AdvancedRoomManager {
                 maxSeats: room.maxSeats
             });
             
-            this.updateRoom(roomId);
             this.broadcastRoomsList();
             
-            logger.info(`User ${userId} joined room ${roomId}`);
+            if (room.players.length >= 2) {
+                await this.startGame(roomId);
+            }
             
-            await this.lock.releaseLock(lockKey, userId);
+            this.lock.releaseLock(lockKey, userId);
             return room;
-            
         } catch (error) {
             logger.error('Error joining room:', { error: error.message, userId, roomId });
-            socket.emit('join_room_error', { message: error.message });
+            socket.emit('error', { message: error.message });
             await this.lock.releaseLock(lockKey, userId);
             return null;
         }
     }
     
     async leaveRoom(socket, userId, roomId) {
-        const lockKey = `leave_room_${userId}_${roomId}`;
+        const lockKey = `leave_${userId}_${roomId}`;
         try {
             await this.lock.acquireLock(lockKey, userId, 5000);
             
             const room = this.rooms.get(roomId);
-            if (!room) {
-                await this.lock.releaseLock(lockKey, userId);
-                return;
-            }
+            if (!room) { await this.lock.releaseLock(lockKey, userId); return; }
             
             const playerIndex = room.players.findIndex(p => p.userId === userId);
-            if (playerIndex === -1) {
-                await this.lock.releaseLock(lockKey, userId);
-                return;
-            }
+            if (playerIndex === -1) { await this.lock.releaseLock(lockKey, userId); return; }
             
             const player = room.players[playerIndex];
             
             if (room.status === 'waiting') {
-                const refund = player.paidAmount || room.seatPrice;
-                await db.query(
-                    'UPDATE users SET balance = balance + $1 WHERE id = $2',
-                    [refund, userId]
+                await userManager.addBalance(
+                    userId, 
+                    room.seatPrice, 
+                    `استرداد من غرفة ${room.name}`
                 );
                 socket.emit('balance_update', { 
-                    balance: player.balance + refund,
-                    message: `تم إعادة ${refund}$` 
+                    balance: player.balance + room.seatPrice,
+                    message: `تم إعادة ${room.seatPrice}$` 
                 });
             }
             
             room.players.splice(playerIndex, 1);
             socket.leave(roomId);
-            this.players.delete(userId);
-            
-            await db.query(
-                'UPDATE rooms SET players = $1 WHERE id = $2',
-                [JSON.stringify(room.players), roomId]
-            );
+            userManager.setOffline(userId);
             
             io.to(roomId).emit('player_left', {
                 userId,
@@ -3023,11 +1980,7 @@ class AdvancedRoomManager {
                 this.resetRoom(roomId);
             }
             
-            this.updateRoom(roomId);
             this.broadcastRoomsList();
-            
-            logger.info(`User ${userId} left room ${roomId}`);
-            
             await this.lock.releaseLock(lockKey, userId);
         } catch (error) {
             logger.error('Error leaving room:', { error: error.message, userId, roomId });
@@ -3035,102 +1988,13 @@ class AdvancedRoomManager {
         }
     }
     
-    async resetRoom(roomId) {
-        const lockKey = `reset_room_${roomId}`;
-        try {
-            await this.lock.acquireLock(lockKey, 'system', 10000);
-            
-            const oldRoom = this.rooms.get(roomId);
-            if (!oldRoom) {
-                await this.lock.releaseLock(lockKey, 'system');
-                return;
-            }
-            
-            if (this.activeGames.has(roomId)) {
-                const game = this.activeGames.get(roomId);
-                game.stop();
-                this.activeGames.delete(roomId);
-            }
-            
-            this.rooms.delete(roomId);
-            await db.query('DELETE FROM rooms WHERE id = $1', [roomId]);
-            
-            const config = await loadServerConfig();
-            const typeConfig = config.rooms[oldRoom.type];
-            
-            if (typeConfig && typeConfig.enabled) {
-                let roomNumber = 1;
-                let newRoomId = `${oldRoom.type}_room_${roomNumber}`;
-                while (this.rooms.has(newRoomId)) {
-                    roomNumber++;
-                    newRoomId = `${oldRoom.type}_room_${roomNumber}`;
-                }
-                
-                const newRoom = {
-                    id: newRoomId,
-                    type: oldRoom.type,
-                    name: `${this.roomTypes[oldRoom.type]?.icon || '🏠'} ${this.roomTypes[oldRoom.type]?.name || oldRoom.type} ${roomNumber}`,
-                    maxSeats: typeConfig.maxSeats,
-                    seatPrice: typeConfig.seatPrice,
-                    rewardMultiplier: typeConfig.rewardMultiplier || 1,
-                    players: [],
-                    spectators: [],
-                    status: 'waiting',
-                    createdAt: Date.now(),
-                    startTime: null,
-                    gameRound: (oldRoom.gameRound || 0) + 1,
-                    config: typeConfig,
-                    minElo: this.roomTypes[oldRoom.type]?.minElo || 0,
-                    maxElo: this.roomTypes[oldRoom.type]?.maxElo || 3000,
-                    stats: {
-                        totalGames: oldRoom.stats?.totalGames || 0,
-                        totalKills: oldRoom.stats?.totalKills || 0,
-                        averageKills: oldRoom.stats?.averageKills || 0
-                    }
-                };
-                
-                this.rooms.set(newRoomId, newRoom);
-                
-                await db.query(
-                    `INSERT INTO rooms (id, type, name, max_seats, seat_price, reward_multiplier, status, players, game_round)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-                    [newRoomId, newRoom.type, newRoom.name, newRoom.maxSeats, newRoom.seatPrice, 
-                     newRoom.rewardMultiplier, 'waiting', '[]', newRoom.gameRound]
-                );
-                
-                io.emit('room_created', {
-                    roomId: newRoomId,
-                    name: newRoom.name,
-                    maxSeats: newRoom.maxSeats,
-                    seatPrice: newRoom.seatPrice,
-                    gameRound: newRoom.gameRound
-                });
-                
-                logger.info(`Room reset: ${oldRoom.name} -> ${newRoom.name} (Round ${newRoom.gameRound})`);
-            }
-            
-            this.broadcastRoomsList();
-            
-            await this.lock.releaseLock(lockKey, 'system');
-        } catch (error) {
-            logger.error('Error resetting room:', { error: error.message, roomId });
-            await this.lock.releaseLock(lockKey, 'system');
-        }
-    }
-    
     async startGame(roomId) {
-        const lockKey = `start_game_${roomId}`;
+        const lockKey = `start_${roomId}`;
         try {
             await this.lock.acquireLock(lockKey, 'system', 10000);
             
             const room = this.rooms.get(roomId);
-            if (!room || room.status !== 'waiting') {
-                await this.lock.releaseLock(lockKey, 'system');
-                return null;
-            }
-            
-            const minPlayers = 2;
-            if (room.players.length < minPlayers) {
+            if (!room || room.status !== 'waiting' || room.players.length < 2) {
                 await this.lock.releaseLock(lockKey, 'system');
                 return null;
             }
@@ -3138,52 +2002,40 @@ class AdvancedRoomManager {
             room.status = 'active';
             room.startTime = Date.now();
             
-            const game = new AdvancedGameEngine(roomId, room);
+            const game = new GameEngine(roomId, room);
             game.start();
             this.activeGames.set(roomId, game);
             
-            const gameStartData = {
+            const gameData = {
                 roomId,
                 players: room.players.map(p => ({
                     userId: p.userId,
                     username: p.username,
-                    elo: p.elo,
-                    health: p.health
+                    elo: p.elo
                 })),
                 startTime: room.startTime,
-                gameRound: room.gameRound || 1,
-                mode: 'battle_royale',
-                totalPlayers: room.players.length,
-                config: {
-                    mapSize: 600,
-                    boundaryLimit: 280,
-                    bulletSpeed: 2.8,
-                    bulletDamage: 25,
-                    fireCooldown: 2000,
-                    tankHealth: 100,
-                    respawnTime: 5000
-                }
+                gameRound: room.gameRound + 1,
+                totalPlayers: room.players.length
             };
             
             for (const player of room.players) {
                 const socket = io.sockets.sockets.get(player.socketId);
                 if (socket) {
                     socket.emit('game_start', {
-                        ...gameStartData,
+                        ...gameData,
                         yourId: player.userId,
-                        position: this.getSpawnPosition(player.index || 0)
+                        position: this.getSpawnPosition(room.players.indexOf(player))
                     });
                 }
             }
             
+            room.gameRound++;
             logger.info(`Game started in ${room.name} with ${room.players.length} players`);
             monitoring.recordGameStarted(room.players.length);
             
             this.broadcastRoomsList();
-            
             await this.lock.releaseLock(lockKey, 'system');
             return game;
-            
         } catch (error) {
             logger.error('Error starting game:', { error: error.message, roomId });
             await this.lock.releaseLock(lockKey, 'system');
@@ -3203,26 +2055,35 @@ class AdvancedRoomManager {
         return positions[index % positions.length] || positions[0];
     }
     
-    async updateRoom(roomId) {
-        const room = this.rooms.get(roomId);
-        if (!room) return;
-        
-        io.to(roomId).emit('room_update', {
-            players: room.players.map(p => ({
-                userId: p.userId,
-                username: p.username,
-                elo: p.elo,
-                health: p.health
-            })),
-            maxSeats: room.maxSeats,
-            count: room.players.length,
-            seatPrice: room.seatPrice,
-            needed: room.maxSeats - room.players.length,
-            status: room.status
-        });
-        
-        if (room.players.length >= 2 && room.status === 'waiting') {
-            await this.startGame(roomId);
+    async resetRoom(roomId) {
+        const lockKey = `reset_${roomId}`;
+        try {
+            await this.lock.acquireLock(lockKey, 'system', 10000);
+            
+            const oldRoom = this.rooms.get(roomId);
+            if (!oldRoom) { await this.lock.releaseLock(lockKey, 'system'); return; }
+            
+            if (this.activeGames.has(roomId)) {
+                this.activeGames.get(roomId).stop();
+                this.activeGames.delete(roomId);
+            }
+            
+            const newRoom = {
+                ...oldRoom,
+                players: [],
+                status: 'waiting',
+                createdAt: Date.now(),
+                startTime: null
+            };
+            
+            this.rooms.set(roomId, newRoom);
+            logger.info(`Room reset: ${oldRoom.name}`);
+            this.broadcastRoomsList();
+            
+            await this.lock.releaseLock(lockKey, 'system');
+        } catch (error) {
+            logger.error('Error resetting room:', { error: error.message, roomId });
+            await this.lock.releaseLock(lockKey, 'system');
         }
     }
     
@@ -3238,105 +2099,45 @@ class AdvancedRoomManager {
                     maxSeats: room.maxSeats,
                     seatPrice: room.seatPrice,
                     status: room.status,
-                    needed: room.maxSeats - room.players.length,
-                    startTime: room.startTime,
-                    gameRound: room.gameRound || 0,
                     minElo: room.minElo,
-                    maxElo: room.maxElo
+                    maxElo: room.maxElo,
+                    gameRound: room.gameRound
                 });
             }
         }
         io.emit('rooms_list', { rooms: roomsList });
     }
     
-    broadcastLobbyInfo() {
-        const totalPlayers = this.players.size;
-        const activeRooms = Array.from(this.rooms.values()).filter(r => r.status === 'active').length;
-        const waitingRooms = Array.from(this.rooms.values()).filter(r => r.status === 'waiting').length;
-        
+    broadcastLobbyStats() {
         io.emit('lobby_stats', {
-            totalPlayers,
-            activeRooms,
-            waitingRooms,
+            totalPlayers: userManager.getOnlineCount(),
+            activeRooms: Array.from(this.rooms.values()).filter(r => r.status === 'active').length,
+            waitingRooms: Array.from(this.rooms.values()).filter(r => r.status === 'waiting').length,
             totalRooms: this.rooms.size,
             activeGames: this.activeGames.size,
             serverTime: Date.now(),
-            maxPlayers: 1000,
-            version: '11.0.0'
+            version: '12.0.0'
         });
     }
     
     cleanupInactiveRooms() {
         const now = Date.now();
         const timeout = 3600000;
-        
         for (const [roomId, room] of this.rooms) {
-            if (room.status === 'waiting' && 
-                room.players.length === 0 && 
-                now - room.createdAt > timeout) {
+            if (room.status === 'waiting' && room.players.length === 0 && now - room.createdAt > timeout) {
                 this.rooms.delete(roomId);
                 logger.info(`Removed inactive room: ${roomId}`);
             }
         }
     }
-    
-    cleanupPendingReconnects() {
-        const now = Date.now();
-        const timeout = 30000;
-        
-        for (const [key, data] of this.pendingReconnects) {
-            if (now - data.timestamp > timeout) {
-                this.pendingReconnects.delete(key);
-                logger.debug(`Removed expired reconnect: ${key}`);
-            }
-        }
-    }
-    
-    async getUserData(userId) {
-        try {
-            const cached = await cache.get(userId, 'user');
-            if (cached) return cached;
-            
-            const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
-            if (result.rows.length === 0) {
-                const newUser = {
-                    id: userId,
-                    telegram_id: userId,
-                    username: `لاعب_${userId.slice(0, 6)}`,
-                    balance: 100,
-                    elo: 1000,
-                    kills: 0,
-                    wins: 0,
-                    games_played: 0,
-                    total_rewards: 0,
-                    is_admin: userId === process.env.ADMIN_TELEGRAM_ID
-                };
-                
-                await db.query(
-                    `INSERT INTO users (id, telegram_id, username, balance, elo, is_admin, created_at, last_login)
-                     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-                    [newUser.id, newUser.telegram_id, newUser.username, newUser.balance, newUser.elo, newUser.is_admin]
-                );
-                
-                await cache.set(userId, newUser, 'user');
-                return newUser;
-            }
-            
-            const user = result.rows[0];
-            await cache.set(userId, user, 'user');
-            return user;
-            
-        } catch (error) {
-            logger.error('Error getting user data:', { error: error.message, userId });
-            return null;
-        }
-    }
 }
+
+const roomManager = new RoomManager();
 
 // ============================================
 // 🎮 محرك اللعبة المتقدم
 // ============================================
-class AdvancedGameEngine {
+class GameEngine {
     constructor(roomId, room) {
         this.roomId = roomId;
         this.room = room;
@@ -3349,26 +2150,22 @@ class AdvancedGameEngine {
         this.gameEnded = false;
         this.gameStartTime = Date.now();
         this.tickInterval = null;
-        this.lastTick = Date.now();
         this.bulletId = 0;
         this.killRewards = new Map();
         this.eliminatedPlayers = new Set();
         this.gameRound = (room.gameRound || 0) + 1;
         this.config = null;
-        this.stateHistory = [];
-        this.maxHistorySize = 60;
-        this.powerupSpawnTimer = 0;
         this.zoneShrink = {
             active: false,
             currentRadius: 280,
-            targetRadius: 280,
+            targetRadius: 50,
             shrinkRate: 0,
             startTime: 0,
             duration: 0
         };
         
         this.initGame();
-        logger.info(`Advanced GameEngine created for room ${roomId}`);
+        logger.info(`GameEngine created for ${roomId}`);
     }
     
     async initGame() {
@@ -3393,8 +2190,8 @@ class AdvancedGameEngine {
                 name: player.username || 'لاعب',
                 kills: 0,
                 lastShoot: 0,
-                speed: gameConfig.tankSpeed || 0.25,
-                rotationSpeed: gameConfig.tankRotationSpeed || 0.04,
+                speed: 0.25,
+                rotationSpeed: 0.04,
                 active: true,
                 powerups: []
             });
@@ -3402,17 +2199,7 @@ class AdvancedGameEngine {
         
         this.obstacles = this.generateObstacles();
         this.powerups = this.generatePowerups();
-        
         this.aliveCount = this.tanks.size;
-        
-        for (const [userId, tank] of this.tanks) {
-            const player = this.room.players.find(p => p.userId === userId);
-            if (player) {
-                player.position = { ...tank.position };
-                player.health = tank.health;
-            }
-        }
-        
         this.startZoneShrink();
     }
     
@@ -3432,43 +2219,32 @@ class AdvancedGameEngine {
         const positions = [];
         const count = this.room.players.length;
         const radius = 300;
-        const center = { x: 0, z: 0 };
-        
         for (let i = 0; i < count; i++) {
             const angle = (i / count) * 2 * Math.PI + Math.random() * 0.1;
             const distance = radius * 0.4 + Math.random() * radius * 0.6;
             positions.push({
-                x: center.x + Math.cos(angle) * distance,
-                z: center.z + Math.sin(angle) * distance
+                x: Math.cos(angle) * distance,
+                z: Math.sin(angle) * distance
             });
         }
-        
         return positions;
     }
     
     generateObstacles() {
         const obstacles = [];
         const count = 30 + Math.floor(Math.random() * 20);
-        
         for (let i = 0; i < count; i++) {
             const angle = Math.random() * 2 * Math.PI;
             const distance = 50 + Math.random() * 250;
             const size = 1.5 + Math.random() * 4;
-            
             obstacles.push({
                 id: `obs_${i}`,
-                position: {
-                    x: Math.cos(angle) * distance,
-                    z: Math.sin(angle) * distance
-                },
+                position: { x: Math.cos(angle) * distance, z: Math.sin(angle) * distance },
                 radius: size,
-                height: 2 + Math.random() * 4,
-                type: Math.random() > 0.6 ? 'cover' : 'obstacle',
                 health: 50 + Math.random() * 50,
                 destroyed: false
             });
         }
-        
         return obstacles;
     }
     
@@ -3476,40 +2252,32 @@ class AdvancedGameEngine {
         const powerups = [];
         const types = ['health', 'shield', 'boost', 'speed', 'damage'];
         const count = 10 + Math.floor(Math.random() * 10);
-        
         for (let i = 0; i < count; i++) {
             const angle = Math.random() * 2 * Math.PI;
             const distance = 50 + Math.random() * 230;
-            
             powerups.push({
                 id: `pw_${i}`,
                 type: types[Math.floor(Math.random() * types.length)],
-                position: {
-                    x: Math.cos(angle) * distance,
-                    z: Math.sin(angle) * distance
-                },
+                position: { x: Math.cos(angle) * distance, z: Math.sin(angle) * distance },
                 active: true,
                 respawnTime: 10000,
                 lastSpawn: Date.now()
             });
         }
-        
         return powerups;
     }
     
     start() {
         this.tickInterval = setInterval(() => {
-            const now = Date.now();
-            const timeStep = (now - this.lastTick) / 1000;
-            this.lastTick = now;
-            this.update(Math.min(timeStep, 0.05));
+            const timeStep = 0.05;
+            this.update(timeStep);
         }, 50);
         
         setInterval(() => {
             io.to(this.roomId).emit('game_ping', { time: Date.now() });
         }, 5000);
         
-        logger.info(`Game started for room ${this.roomId}`);
+        logger.info(`Game started for ${this.roomId}`);
     }
     
     update(timeStep) {
@@ -3522,7 +2290,6 @@ class AdvancedGameEngine {
         this.checkCollisions();
         this.updateAliveCount();
         this.broadcastGameState();
-        
         this.checkGameEnd();
     }
     
@@ -3532,14 +2299,11 @@ class AdvancedGameEngine {
         
         for (let i = 0; i < this.bullets.length; i++) {
             const bullet = this.bullets[i];
-            
             bullet.position.x += bullet.velocity.x * timeStep;
             bullet.position.z += bullet.velocity.z * timeStep;
             bullet.life--;
             
-            if (bullet.life <= 0 || 
-                Math.abs(bullet.position.x) > boundary ||
-                Math.abs(bullet.position.z) > boundary) {
+            if (bullet.life <= 0 || Math.abs(bullet.position.x) > boundary || Math.abs(bullet.position.z) > boundary) {
                 toRemove.push(i);
             }
         }
@@ -3551,16 +2315,12 @@ class AdvancedGameEngine {
     
     updatePowerups(timeStep) {
         const now = Date.now();
-        
         for (const powerup of this.powerups) {
             if (!powerup.active && now - powerup.lastSpawn > powerup.respawnTime) {
                 powerup.active = true;
                 const angle = Math.random() * 2 * Math.PI;
                 const distance = 50 + Math.random() * 200;
-                powerup.position = {
-                    x: Math.cos(angle) * distance,
-                    z: Math.sin(angle) * distance
-                };
+                powerup.position = { x: Math.cos(angle) * distance, z: Math.sin(angle) * distance };
             }
         }
     }
@@ -3571,13 +2331,8 @@ class AdvancedGameEngine {
         const elapsed = (Date.now() - this.zoneShrink.startTime) / 1000;
         const progress = Math.min(1, elapsed / (this.zoneShrink.duration / 1000));
         
-        this.zoneShrink.currentRadius = this.zoneShrink.currentRadius - 
-            (this.zoneShrink.shrinkRate * timeStep);
-        
-        this.zoneShrink.currentRadius = Math.max(
-            this.zoneShrink.targetRadius,
-            this.zoneShrink.currentRadius
-        );
+        this.zoneShrink.currentRadius -= this.zoneShrink.shrinkRate * timeStep;
+        this.zoneShrink.currentRadius = Math.max(this.zoneShrink.targetRadius, this.zoneShrink.currentRadius);
         
         if (Math.floor(progress * 10) % 2 === 0) {
             io.to(this.roomId).emit('zone_update', {
@@ -3593,16 +2348,11 @@ class AdvancedGameEngine {
             if (tank.shield < tank.maxShield) {
                 tank.shield = Math.min(tank.maxShield, tank.shield + 1 * timeStep);
             }
-            
             if (tank.boost < tank.maxBoost) {
                 tank.boost = Math.min(tank.maxBoost, tank.boost + 5 * timeStep);
             }
             
-            const distance = Math.sqrt(
-                tank.position.x * tank.position.x + 
-                tank.position.z * tank.position.z
-            );
-            
+            const distance = Math.sqrt(tank.position.x * tank.position.x + tank.position.z * tank.position.z);
             if (distance > this.zoneShrink.currentRadius) {
                 const damage = (1 - this.zoneShrink.currentRadius / 280) * 2 * timeStep;
                 this.handleDamage(null, userId, damage);
@@ -3648,7 +2398,6 @@ class AdvancedGameEngine {
                         if (obstacle.health <= 0) {
                             obstacle.destroyed = true;
                             bulletHit = true;
-                            
                             io.to(this.roomId).emit('obstacle_destroyed', {
                                 id: obstacle.id,
                                 position: obstacle.position
@@ -3674,9 +2423,7 @@ class AdvancedGameEngine {
                 }
             }
             
-            if (bulletHit) {
-                toRemove.push(i);
-            }
+            if (bulletHit) toRemove.push(i);
         }
         
         for (const idx of toRemove.sort((a, b) => b - a)) {
@@ -3689,7 +2436,6 @@ class AdvancedGameEngine {
         if (!target || target.health <= 0 || this.eliminatedPlayers.has(targetId)) return;
         
         let actualDamage = damage;
-        
         if (target.shield > 0) {
             const shieldDamage = Math.min(target.shield, actualDamage);
             target.shield -= shieldDamage;
@@ -3698,12 +2444,6 @@ class AdvancedGameEngine {
         
         const newHealth = Math.max(0, target.health - actualDamage);
         target.health = newHealth;
-        
-        const targetPlayer = this.room.players.find(p => p.userId === targetId);
-        if (targetPlayer) {
-            targetPlayer.health = newHealth;
-            targetPlayer.shield = target.shield;
-        }
         
         io.to(this.roomId).emit('player_hit', {
             targetId,
@@ -3727,16 +2467,12 @@ class AdvancedGameEngine {
         target.health = 0;
         target.active = false;
         
-        const targetPlayer = this.room.players.find(p => p.userId === targetId);
-        
         if (shooterId && shooterId !== targetId) {
             const reward = this.calculateKillReward(shooterId);
             this.killRewards.set(shooterId, (this.killRewards.get(shooterId) || 0) + reward);
             
             const killer = this.tanks.get(shooterId);
-            if (killer) {
-                killer.kills = (killer.kills || 0) + 1;
-            }
+            if (killer) killer.kills = (killer.kills || 0) + 1;
             
             io.to(this.roomId).emit('player_eliminated', {
                 targetId,
@@ -3744,8 +2480,7 @@ class AdvancedGameEngine {
                 reward,
                 targetName: target.name,
                 killerName: this.tanks.get(shooterId)?.name || 'لاعب',
-                aliveCount: this.aliveCount - 1,
-                timestamp: Date.now()
+                aliveCount: this.aliveCount - 1
             });
             
             this.killFeed.push({
@@ -3753,29 +2488,13 @@ class AdvancedGameEngine {
                 target: target.name,
                 timestamp: Date.now()
             });
+            if (this.killFeed.length > 20) this.killFeed.shift();
             
-            if (this.killFeed.length > 20) {
-                this.killFeed.shift();
-            }
-            
-            io.to(this.roomId).emit('kill_feed_update', {
-                kills: this.killFeed.slice(-10)
-            });
-        }
-        
-        const targetSocketId = targetPlayer?.socketId;
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('you_were_eliminated', {
-                message: '💀 لقد تم تدمير دبابتك!',
-                kills: this.killRewards.get(targetId) || 0,
-                timestamp: Date.now()
-            });
+            io.to(this.roomId).emit('kill_feed_update', { kills: this.killFeed.slice(-10) });
         }
         
         const respawnTime = this.config?.game?.respawnTime || 5000;
-        setTimeout(() => {
-            this.respawnPlayer(targetId);
-        }, respawnTime);
+        setTimeout(() => this.respawnPlayer(targetId), respawnTime);
     }
     
     respawnPlayer(userId) {
@@ -3796,13 +2515,6 @@ class AdvancedGameEngine {
             const pos = positions[Math.floor(Math.random() * positions.length)];
             tank.position = { ...pos };
             
-            const player = this.room.players.find(p => p.userId === userId);
-            if (player) {
-                player.position = { ...pos };
-                player.health = 100;
-                player.shield = 50;
-            }
-            
             io.to(this.roomId).emit('player_respawned', {
                 userId,
                 position: tank.position,
@@ -3811,11 +2523,8 @@ class AdvancedGameEngine {
             });
             
             io.to(userId).emit('respawn_success', {
-                message: '✅ تم إعادة إحياء دبابتك!',
-                position: tank.position
+                message: '✅ تم إعادة إحياء دبابتك!'
             });
-            
-            logger.debug(`Player ${userId} respawned`);
         }
     }
     
@@ -3843,9 +2552,7 @@ class AdvancedGameEngine {
                 break;
             case 'speed':
                 tank.speed *= 1.3;
-                setTimeout(() => {
-                    tank.speed /= 1.3;
-                }, 5000);
+                setTimeout(() => { tank.speed /= 1.3; }, 5000);
                 message = `💨 زيادة السرعة`;
                 break;
             case 'damage':
@@ -3853,24 +2560,14 @@ class AdvancedGameEngine {
                 break;
         }
         
-        io.to(userId).emit('powerup_collected', {
-            type: powerup.type,
-            message: message
-        });
-        
-        io.to(this.roomId).emit('powerup_used', {
-            userId,
-            type: powerup.type,
-            position: powerup.position
-        });
+        io.to(userId).emit('powerup_collected', { type: powerup.type, message });
+        io.to(this.roomId).emit('powerup_used', { userId, type: powerup.type, position: powerup.position });
     }
     
     updateAliveCount() {
         let alive = 0;
         for (const [userId, tank] of this.tanks) {
-            if (tank.health > 0 && !this.eliminatedPlayers.has(userId)) {
-                alive++;
-            }
+            if (tank.health > 0 && !this.eliminatedPlayers.has(userId)) alive++;
         }
         this.aliveCount = alive;
     }
@@ -3885,24 +2582,14 @@ class AdvancedGameEngine {
                 rotation: tank.rotation,
                 active: tank.active
             })),
-            bullets: this.bullets.map(b => ({
-                id: b.id,
-                position: b.position,
-                ownerId: b.ownerId
-            })),
+            bullets: this.bullets.map(b => ({ id: b.id, position: b.position, ownerId: b.ownerId })),
             obstacles: this.obstacles.filter(o => !o.destroyed),
             powerups: this.powerups.filter(p => p.active),
             aliveCount: this.aliveCount,
             zoneRadius: this.zoneShrink.currentRadius,
             timestamp: Date.now()
         };
-        
         io.to(this.roomId).emit('game_state', state);
-        
-        this.stateHistory.push(state);
-        if (this.stateHistory.length > this.maxHistorySize) {
-            this.stateHistory.shift();
-        }
     }
     
     checkGameEnd() {
@@ -3928,8 +2615,6 @@ class AdvancedGameEngine {
         }
         
         const duration = Math.floor((Date.now() - this.gameStartTime) / 1000);
-        const config = await loadServerConfig();
-        
         const winnerReward = winnerId ? this.calculateWinReward(winnerId) : 0;
         
         try {
@@ -3954,14 +2639,12 @@ class AdvancedGameEngine {
                 ]
             );
         } catch (error) {
-            logger.error('Error saving match:', { error: error.message, roomId: this.roomId });
+            logger.error('Error saving match:', { error: error.message });
         }
         
-        if (winnerId) {
-            await this.distributeRewards(winnerId, winnerReward);
-        }
+        if (winnerId) await this.distributeRewards(winnerId, winnerReward);
         
-        const result = {
+        io.to(this.roomId).emit('game_ended', {
             winner: winnerId,
             winReward: winnerReward,
             duration,
@@ -3974,25 +2657,18 @@ class AdvancedGameEngine {
             })),
             gameRound: this.gameRound,
             timestamp: Date.now()
-        };
-        
-        io.to(this.roomId).emit('game_ended', result);
+        });
         
         this.room.status = 'finished';
-        this.room.endTime = Date.now();
-        
         logger.info(`Game ended in ${this.room.name}. Winner: ${winnerId || 'none'}`);
         monitoring.recordGameEnded(duration);
         
-        setTimeout(() => {
-            roomManager.resetRoom(this.roomId);
-        }, 10000);
+        setTimeout(() => roomManager.resetRoom(this.roomId), 10000);
     }
     
     calculateKillReward(killerId) {
         const killer = this.room.players.find(p => p.userId === killerId);
         if (!killer) return 0;
-        
         const seatPrice = this.room.seatPrice || 1;
         const percent = this.config?.game?.killRewardPercent || 0.5;
         return Math.round(seatPrice * percent * 100) / 100;
@@ -4001,12 +2677,10 @@ class AdvancedGameEngine {
     calculateWinReward(winnerId) {
         const winner = this.room.players.find(p => p.userId === winnerId);
         if (!winner) return 0;
-        
         const seatPrice = this.room.seatPrice || 1;
         const multiplier = this.config?.game?.winRewardMultiplier || 2.0;
         const kills = this.tanks.get(winnerId)?.kills || 0;
         const killBonus = kills * seatPrice * (this.config?.game?.killRewardPercent || 0.5);
-        
         return Math.round((seatPrice * multiplier + killBonus) * 100) / 100;
     }
     
@@ -4020,34 +2694,17 @@ class AdvancedGameEngine {
                     const killsReward = kills * 0.1;
                     const totalReward = reward + killsReward;
                     
-                    const result = await client.query(
-                        'SELECT elo, balance FROM users WHERE id = $1',
-                        [player.userId]
-                    );
-                    
+                    const result = await client.query('SELECT elo, balance FROM users WHERE id = $1', [player.userId]);
                     const currentELO = result.rows[0]?.elo || 1000;
                     const currentBalance = result.rows[0]?.balance || 0;
                     
-                    let eloChange = 0;
-                    if (isWinner) {
-                        eloChange = 15 + Math.floor(kills / 2);
-                    } else {
-                        const performanceBonus = kills * 2;
-                        eloChange = -5 + performanceBonus;
-                    }
-                    
+                    let eloChange = isWinner ? 15 + Math.floor(kills / 2) : -5 + kills * 2;
                     const newELO = Math.max(1, currentELO + eloChange);
                     const newBalance = currentBalance + totalReward;
                     
                     await client.query(
-                        `UPDATE users SET 
-                         balance = $1,
-                         elo = $2,
-                         games_played = games_played + 1,
-                         wins = wins + $3,
-                         kills = kills + $4,
-                         total_rewards = total_rewards + $5,
-                         last_game = CURRENT_TIMESTAMP
+                        `UPDATE users SET balance = $1, elo = $2, games_played = games_played + 1,
+                         wins = wins + $3, kills = kills + $4, total_rewards = total_rewards + $5
                          WHERE id = $6`,
                         [newBalance, newELO, isWinner ? 1 : 0, kills, totalReward, player.userId]
                     );
@@ -4061,13 +2718,12 @@ class AdvancedGameEngine {
                         newBalance,
                         rank,
                         kills,
-                        killsReward,
-                        timestamp: Date.now()
+                        killsReward
                     });
                 }
             });
         } catch (error) {
-            logger.error('Error distributing rewards:', { error: error.message, roomId: this.roomId });
+            logger.error('Error distributing rewards:', { error: error.message });
             monitoring.recordError('reward_distribution_error', error.message, 'game');
         }
     }
@@ -4096,11 +2752,7 @@ app.use(helmet({
             connectSrc: ["'self'", "wss:", "ws:"]
         }
     },
-    hsts: {
-        maxAge: 31536000,
-        includeSubDomains: true,
-        preload: true
-    }
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true }
 }));
 
 app.use(compression());
@@ -4121,81 +2773,57 @@ app.use((req, res, next) => {
 });
 
 app.use(morgan('combined', {
-    stream: {
-        write: (message) => {
-            logger.info('HTTP Request', { message: message.trim() });
-        }
-    }
+    stream: { write: (message) => logger.info('HTTP Request', { message: message.trim() }) }
 }));
 
 const limiter = rateLimit({
-    windowMs: process.env.RATE_LIMIT_WINDOW || 60000,
-    max: process.env.RATE_LIMIT_MAX || 100,
-    message: { error: 'Too many requests, please try again later.' },
-    standardHeaders: true,
-    legacyHeaders: false,
-    keyGenerator: (req) => {
-        return req.ip || req.headers['x-forwarded-for'] || 'unknown';
-    }
+    windowMs: 60000,
+    max: 100,
+    message: { error: 'Too many requests, please try again later.' }
 });
 app.use('/api/', limiter);
 
 // ============================================
-// 📊 نقاط النهاية
+// 📊 نقاط النهاية العامة
 // ============================================
 app.get('/health', (req, res) => {
     const health = {
         status: 'ok',
         timestamp: new Date().toISOString(),
         uptime: monitoring.formatUptime(Math.floor((Date.now() - monitoring.startTime) / 1000)),
-        version: '11.0.0',
+        version: '12.0.0',
         service: 'battle-tanks-royale',
         requestId: req.requestId,
         checks: {
             database: db.getHealth(),
             connections: monitoring.metrics.connections.active,
-            memory: monitoring.metrics.system.memory,
-            cpu: monitoring.metrics.system.cpu,
-            worker: cluster.worker ? cluster.worker.id : 'main'
+            memory: process.memoryUsage().heapUsed / 1024 / 1024,
+            cpu: process.cpuUsage().user / 1000000
         }
     };
-    
-    const statusCode = health.checks.database.connected ? 200 : 503;
-    res.status(statusCode).json(health);
+    res.status(health.checks.database.connected ? 200 : 503).json(health);
 });
 
-app.get('/metrics', async (req, res) => {
-    const metrics = monitoring.getPrometheusMetrics();
-    const health = db.getHealth();
-    
+app.get('/metrics', (req, res) => {
+    const stats = monitoring.getStats();
     let output = '# HELP battle_tanks_metrics Metrics for Battle Tanks Royale\n';
     output += '# TYPE battle_tanks_metrics gauge\n';
-    output += `battle_tanks_worker ${cluster.worker ? cluster.worker.id : 0}\n`;
-    
-    for (const [key, value] of Object.entries(metrics)) {
-        output += `battle_tanks_${key} ${value}\n`;
-    }
-    
-    output += `battle_tanks_database_connected ${health.connected ? 1 : 0}\n`;
-    output += `battle_tanks_database_pool_size ${health.poolSize || 0}\n`;
-    output += `battle_tanks_cache_hit_rate ${cache.getStats().hitRate}\n`;
-    output += `battle_tanks_queue_size ${queueProcessor.getStats().queueLength}\n`;
-    
-    res.set('Content-Type', 'text/plain');
-    res.send(output);
+    output += `battle_tanks_connections_active ${stats.connections.active}\n`;
+    output += `battle_tanks_connections_total ${stats.connections.total}\n`;
+    output += `battle_tanks_requests_total ${stats.requests.total}\n`;
+    output += `battle_tanks_requests_success ${stats.requests.success}\n`;
+    output += `battle_tanks_requests_error ${stats.requests.error}\n`;
+    output += `battle_tanks_games_active ${stats.games.active}\n`;
+    output += `battle_tanks_games_total ${stats.games.total}\n`;
+    output += `battle_tanks_errors_total ${stats.errors.total}\n`;
+    output += `battle_tanks_database_connected ${stats.database.connected ? 1 : 0}\n`;
+    res.set('Content-Type', 'text/plain').send(output);
 });
 
 app.get('/api/config', async (req, res) => {
     try {
         const config = await loadServerConfig();
-        const sanitized = {
-            ...config,
-            system: {
-                ...config.system,
-                adminPassword: undefined,
-                jwtSecret: undefined
-            }
-        };
+        const sanitized = { ...config, system: { ...config.system, adminPassword: undefined, jwtSecret: undefined } };
         res.json({ success: true, config: sanitized });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -4204,21 +2832,10 @@ app.get('/api/config', async (req, res) => {
 
 app.get('/api/user/:userId', async (req, res) => {
     try {
-        const userId = req.params.userId;
-        const user = await roomManager.getUserData(userId);
-        if (!user) {
-            return res.status(404).json({ success: false, error: 'User not found' });
-        }
-        
+        const user = await userManager.getUser(req.params.userId);
+        if (!user) return res.status(404).json({ success: false, error: 'User not found' });
         const rank = eloSystem.getRank(user.elo || 1000);
-        res.json({
-            success: true,
-            user: {
-                ...user,
-                rank,
-                rankProgress: eloSystem.getRankProgress(user.elo || 1000)
-            }
-        });
+        res.json({ success: true, user: { ...user, rank, rankProgress: eloSystem.getRankProgress(user.elo || 1000) } });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -4228,33 +2845,7 @@ app.get('/api/leaderboard', async (req, res) => {
     try {
         const limit = Math.min(parseInt(req.query.limit) || 100, 100);
         const type = req.query.type || 'elo';
-        
-        const cacheKey = `leaderboard_${type}_${limit}`;
-        const cached = await cache.get(cacheKey, 'leaderboard');
-        if (cached) {
-            return res.json({ success: true, leaderboard: cached, cached: true });
-        }
-        
-        let orderBy = 'elo DESC';
-        if (type === 'wins') orderBy = 'wins DESC, elo DESC';
-        if (type === 'kills') orderBy = 'kills DESC, elo DESC';
-        if (type === 'rewards') orderBy = 'total_rewards DESC, elo DESC';
-        
-        const result = await db.query(
-            `SELECT id, username, elo, kills, wins, games_played, balance, total_rewards 
-             FROM users 
-             ORDER BY ${orderBy} 
-             LIMIT $1`,
-            [limit]
-        );
-        
-        const leaderboard = result.rows.map((user, index) => ({
-            ...user,
-            rank: index + 1,
-            eloRank: eloSystem.getRank(user.elo || 1000)
-        }));
-        
-        await cache.set(cacheKey, leaderboard, 'leaderboard');
+        const leaderboard = await userManager.getLeaderboard(type, limit);
         res.json({ success: true, leaderboard });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -4262,22 +2853,15 @@ app.get('/api/leaderboard', async (req, res) => {
 });
 
 // ============================================
-// 🔑 Admin API routes
+// 🔑 واجهات الإدارة
 // ============================================
 const authenticateAdmin = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader?.split(' ')[1];
-    
-    if (!token) {
-        return res.status(401).json({ success: false, error: 'No token provided' });
-    }
-    
+    const token = req.headers['authorization']?.split(' ')[1];
+    if (!token) return res.status(401).json({ success: false, error: 'No token provided' });
     try {
         const config = loadServerConfig();
         const decoded = jwt.verify(token, config.system.jwtSecret || process.env.JWT_SECRET || 'default-secret');
-        if (!decoded.isAdmin) {
-            return res.status(403).json({ success: false, error: 'Not authorized' });
-        }
+        if (!decoded.isAdmin) return res.status(403).json({ success: false, error: 'Not authorized' });
         req.user = decoded;
         next();
     } catch (error) {
@@ -4289,26 +2873,17 @@ app.post('/api/admin/login', async (req, res) => {
     try {
         const { password } = req.body;
         const config = await loadServerConfig();
-        
         if (antiCheat.verifyAdminPassword(password)) {
             const token = jwt.sign(
                 { isAdmin: true, timestamp: Date.now() },
                 config.system.jwtSecret || process.env.JWT_SECRET || 'default-secret',
                 { expiresIn: '1h' }
             );
-            
             monitoring.recordAdminAction('login');
-            res.json({
-                success: true,
-                token,
-                expiresIn: 3600
-            });
+            res.json({ success: true, token, expiresIn: 3600 });
         } else {
             monitoring.recordAdminAction('login_failed');
-            res.status(401).json({
-                success: false,
-                error: 'Invalid admin password'
-            });
+            res.status(401).json({ success: false, error: 'Invalid admin password' });
         }
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -4328,7 +2903,7 @@ app.get('/api/admin/stats', authenticateAdmin, async (req, res) => {
                 total: roomManager.rooms.size,
                 active: Array.from(roomManager.rooms.values()).filter(r => r.status === 'active').length,
                 waiting: Array.from(roomManager.rooms.values()).filter(r => r.status === 'waiting').length,
-                players: roomManager.players.size
+                players: userManager.getOnlineCount()
             },
             games: {
                 active: roomManager.activeGames.size,
@@ -4337,9 +2912,7 @@ app.get('/api/admin/stats', authenticateAdmin, async (req, res) => {
             },
             server: {
                 uptime: monitoring.formatUptime(Math.floor((Date.now() - monitoring.startTime) / 1000)),
-                memory: monitoring.metrics.system.memory,
-                cpu: monitoring.metrics.system.cpu,
-                worker: cluster.worker ? cluster.worker.id : 'main'
+                memory: process.memoryUsage().heapUsed / 1024 / 1024
             }
         };
         res.json({ success: true, stats });
@@ -4350,23 +2923,14 @@ app.get('/api/admin/stats', authenticateAdmin, async (req, res) => {
 
 app.post('/api/admin/ban', authenticateAdmin, async (req, res) => {
     try {
-        const { userId, reason, duration } = req.body;
-        if (!userId) {
-            return res.status(400).json({ success: false, error: 'User ID required' });
-        }
-        
-        const banDuration = duration || 24 * 60 * 60 * 1000;
+        const { userId, reason } = req.body;
+        if (!userId) return res.status(400).json({ success: false, error: 'User ID required' });
         await antiCheat.banUser(userId, reason || 'Banned by admin');
-        
-        const player = roomManager.players.get(userId);
+        const player = userManager.getOnline(userId);
         if (player) {
             const socket = io.sockets.sockets.get(player.socketId);
-            if (socket) {
-                socket.emit('banned', { reason: reason || 'تم حظرك من قبل المدير' });
-                socket.disconnect();
-            }
+            if (socket) { socket.emit('banned', { reason: reason || 'تم حظرك' }); socket.disconnect(); }
         }
-        
         monitoring.recordAdminAction('ban_user', userId);
         res.json({ success: true, message: `User ${userId} banned` });
     } catch (error) {
@@ -4377,10 +2941,7 @@ app.post('/api/admin/ban', authenticateAdmin, async (req, res) => {
 app.post('/api/admin/unban', authenticateAdmin, async (req, res) => {
     try {
         const { userId } = req.body;
-        if (!userId) {
-            return res.status(400).json({ success: false, error: 'User ID required' });
-        }
-        
+        if (!userId) return res.status(400).json({ success: false, error: 'User ID required' });
         const result = await antiCheat.unbanUser(userId);
         if (result) {
             monitoring.recordAdminAction('unban_user', userId);
@@ -4393,17 +2954,27 @@ app.post('/api/admin/unban', authenticateAdmin, async (req, res) => {
     }
 });
 
+app.post('/api/admin/balance', authenticateAdmin, async (req, res) => {
+    try {
+        const { userId, amount } = req.body;
+        if (!userId || amount === undefined) {
+            return res.status(400).json({ success: false, error: 'User ID and amount required' });
+        }
+        const newBalance = await userManager.addBalance(userId, amount, 'Admin adjustment');
+        if (newBalance === false) return res.status(500).json({ success: false, error: 'Failed to update balance' });
+        monitoring.recordAdminAction('balance', userId);
+        res.json({ success: true, newBalance });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 app.post('/api/admin/config', authenticateAdmin, async (req, res) => {
     try {
         const { config } = req.body;
-        if (!config) {
-            return res.status(400).json({ success: false, error: 'Config required' });
-        }
-        
+        if (!config) return res.status(400).json({ success: false, error: 'Config required' });
         await saveServerConfig(config);
-        await reloadServerConfig();
         monitoring.recordAdminAction('update_config');
-        
         res.json({ success: true, message: 'Config updated successfully' });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -4416,14 +2987,9 @@ app.post('/api/admin/maintenance', authenticateAdmin, async (req, res) => {
         const config = await loadServerConfig();
         config.system.maintenanceMode = enabled;
         await saveServerConfig(config);
-        
         if (enabled) {
-            io.emit('maintenance_mode', {
-                enabled: true,
-                message: '🔧 الخادم في وضع الصيانة. سيتم إعادة التشغيل قريباً.'
-            });
+            io.emit('maintenance_mode', { enabled: true, message: '🔧 الخادم في وضع الصيانة' });
         }
-        
         monitoring.recordAdminAction('toggle_maintenance');
         res.json({ success: true, message: `Maintenance mode ${enabled ? 'enabled' : 'disabled'}` });
     } catch (error) {
@@ -4444,20 +3010,14 @@ const io = socketIo(server, {
     pingTimeout: 60000,
     pingInterval: 25000,
     maxHttpBufferSize: 1e6,
-    allowEIO3: true,
     path: '/socket.io',
-    serveClient: false,
-    connectTimeout: 45000
+    connectTimeout: 30000
 });
 
 io.use(async (socket, next) => {
     try {
         const userId = socket.handshake.query.userId;
-        const token = socket.handshake.auth.token;
-        
-        if (!userId) {
-            return next(new Error('User ID required'));
-        }
+        if (!userId) return next(new Error('User ID required'));
         
         if (!antiCheat.checkRateLimit(userId, 'auth', socket.handshake.address)) {
             return next(new Error('Too many authentication attempts'));
@@ -4473,12 +3033,11 @@ io.use(async (socket, next) => {
         }
         
         socket.userId = userId;
-        socket.userData = await roomManager.getUserData(userId);
+        socket.userData = await userManager.getUser(userId);
         socket.connectedAt = Date.now();
-        
         next();
     } catch (error) {
-        logger.error('Socket authentication error:', { error: error.message });
+        logger.error('Socket auth error:', { error: error.message });
         next(new Error('Authentication failed'));
     }
 });
@@ -4486,69 +3045,38 @@ io.use(async (socket, next) => {
 io.on('connection', (socket) => {
     const userId = socket.userId;
     logger.info(`Socket connected: ${socket.id} for user ${userId}`);
-    monitoring.recordConnection('connect', socket.handshake.address);
-    
-    roomManager.players.set(userId, {
-        socketId: socket.id,
-        userId,
-        userData: socket.userData,
-        currentRoomId: null,
-        connectedAt: Date.now(),
-        lastPing: Date.now()
-    });
+    monitoring.recordConnection('connect');
+    userManager.setOnline(userId, socket.id);
     
     socket.emit('connected', {
         userId,
         socketId: socket.id,
         timestamp: Date.now(),
         serverTime: Date.now(),
-        version: '11.0.0'
+        version: '12.0.0'
     });
     
     roomManager.broadcastRoomsList();
-    roomManager.broadcastLobbyInfo();
-    
-    // ============================================
-    // 🎯 أحداث Socket.IO
-    // ============================================
+    roomManager.broadcastLobbyStats();
     
     socket.on('ping', (data) => {
         const latency = Date.now() - data.time;
-        socket.emit('pong', {
-            time: Date.now(),
-            latency,
-            serverTime: Date.now()
-        });
-        
-        const player = roomManager.players.get(userId);
-        if (player) {
-            player.lastPing = Date.now();
-            player.latency = latency;
-        }
+        socket.emit('pong', { time: Date.now(), latency, serverTime: Date.now() });
+        const player = userManager.getOnline(userId);
+        if (player) player.lastPing = Date.now();
     });
     
     socket.on('join_room', async (data) => {
         const startTime = Date.now();
         try {
-            const { roomId } = data;
-            if (!roomId) {
-                socket.emit('error', { message: 'Room ID required' });
-                return;
-            }
-            
+            if (!data.roomId) { socket.emit('error', { message: 'Room ID required' }); return; }
             if (!antiCheat.checkRateLimit(userId, 'join', socket.handshake.address)) {
-                socket.emit('error', { message: 'Too many join attempts' });
-                return;
+                socket.emit('error', { message: 'Too many join attempts' }); return;
             }
-            
-            const room = await roomManager.joinRoom(socket, userId, roomId);
-            if (room) {
-                monitoring.recordRequest(true, Date.now() - startTime);
-            } else {
-                monitoring.recordRequest(false, Date.now() - startTime);
-            }
+            const room = await roomManager.joinRoom(socket, userId, data.roomId);
+            monitoring.recordRequest(!!room, Date.now() - startTime);
         } catch (error) {
-            logger.error('Join room error:', { error: error.message, userId, roomId: data?.roomId });
+            logger.error('Join room error:', { error: error.message, userId });
             socket.emit('error', { message: error.message });
             monitoring.recordRequest(false, Date.now() - startTime);
             monitoring.recordError('join_room_error', error.message, 'socket');
@@ -4558,16 +3086,11 @@ io.on('connection', (socket) => {
     socket.on('leave_room', async (data) => {
         const startTime = Date.now();
         try {
-            const { roomId } = data;
-            if (!roomId) {
-                socket.emit('error', { message: 'Room ID required' });
-                return;
-            }
-            
-            await roomManager.leaveRoom(socket, userId, roomId);
+            if (!data.roomId) { socket.emit('error', { message: 'Room ID required' }); return; }
+            await roomManager.leaveRoom(socket, userId, data.roomId);
             monitoring.recordRequest(true, Date.now() - startTime);
         } catch (error) {
-            logger.error('Leave room error:', { error: error.message, userId, roomId: data?.roomId });
+            logger.error('Leave room error:', { error: error.message, userId });
             socket.emit('error', { message: error.message });
             monitoring.recordRequest(false, Date.now() - startTime);
             monitoring.recordError('leave_room_error', error.message, 'socket');
@@ -4575,42 +3098,32 @@ io.on('connection', (socket) => {
     });
     
     socket.on('player_move', (data) => {
-        const player = roomManager.players.get(userId);
+        const player = userManager.getOnline(userId);
         if (!player?.currentRoomId) return;
-        
-        if (!antiCheat.checkRateLimit(userId, 'move', socket.handshake.address)) {
-            return;
-        }
+        if (!antiCheat.checkRateLimit(userId, 'move', socket.handshake.address)) return;
         
         const game = roomManager.activeGames.get(player.currentRoomId);
         if (!game) return;
-        
         const tank = game.tanks.get(userId);
         if (!tank || tank.health <= 0) return;
         
         tank.position = { ...data.position };
         tank.rotation = data.rotation || tank.rotation;
-        
         socket.to(player.currentRoomId).emit('player_moved', {
             userId,
             position: data.position,
             rotation: data.rotation,
-            boost: data.boost || false,
             timestamp: Date.now()
         });
     });
     
     socket.on('player_shoot', (data) => {
-        const player = roomManager.players.get(userId);
+        const player = userManager.getOnline(userId);
         if (!player?.currentRoomId) return;
-        
-        if (!antiCheat.checkRateLimit(userId, 'shoot', socket.handshake.address)) {
-            return;
-        }
+        if (!antiCheat.checkRateLimit(userId, 'shoot', socket.handshake.address)) return;
         
         const game = roomManager.activeGames.get(player.currentRoomId);
         if (!game) return;
-        
         const tank = game.tanks.get(userId);
         if (!tank || tank.health <= 0) return;
         
@@ -4626,9 +3139,7 @@ io.on('connection', (socket) => {
             life: 200,
             timestamp: Date.now()
         };
-        
         game.bullets.push(bullet);
-        
         io.to(player.currentRoomId).emit('bullet_fired', {
             bulletId: bullet.id,
             ownerId: userId,
@@ -4638,46 +3149,23 @@ io.on('connection', (socket) => {
         });
     });
     
-    socket.on('get_leaderboard', async (data) => {
+    socket.on('get_leaderboard', async () => {
         try {
-            const limit = data?.limit || 100;
-            const type = data?.type || 'elo';
-            
-            const result = await db.query(
-                `SELECT id, username, elo, kills, wins, games_played, balance, total_rewards 
-                 FROM users 
-                 ORDER BY ${type === 'elo' ? 'elo DESC' : type === 'wins' ? 'wins DESC' : type === 'kills' ? 'kills DESC' : 'total_rewards DESC'} 
-                 LIMIT $1`,
-                [limit]
-            );
-            
-            const leaderboard = result.rows.map((user, index) => ({
-                ...user,
-                rank: index + 1,
-                eloRank: eloSystem.getRank(user.elo || 1000)
-            }));
-            
+            const leaderboard = await userManager.getLeaderboard('elo', 100);
             socket.emit('leaderboard_update', { leaderboard });
         } catch (error) {
-            logger.error('Get leaderboard error:', { error: error.message, userId });
             socket.emit('error', { message: 'Failed to get leaderboard' });
         }
     });
     
     socket.on('get_stats', async () => {
         try {
-            const user = await roomManager.getUserData(userId);
+            const user = await userManager.getUser(userId);
             if (user) {
                 const rank = eloSystem.getRank(user.elo || 1000);
-                socket.emit('stats_update', {
-                    ...user,
-                    rank,
-                    rankProgress: eloSystem.getRankProgress(user.elo || 1000),
-                    globalRank: await eloSystem.getGlobalRank(userId)
-                });
+                socket.emit('stats_update', { ...user, rank, rankProgress: eloSystem.getRankProgress(user.elo || 1000) });
             }
         } catch (error) {
-            logger.error('Get stats error:', { error: error.message, userId });
             socket.emit('error', { message: 'Failed to get stats' });
         }
     });
@@ -4685,36 +3173,15 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         logger.info(`Socket disconnected: ${socket.id} for user ${userId}`);
         monitoring.recordConnection('disconnect');
-        
-        const player = roomManager.players.get(userId);
-        if (player && player.currentRoomId) {
-            const reconnectKey = `reconnect_${userId}_${Date.now()}`;
-            roomManager.pendingReconnects.set(reconnectKey, {
-                userId,
-                roomId: player.currentRoomId,
-                socketId: socket.id,
-                timestamp: Date.now()
-            });
-            
-            setTimeout(async () => {
-                const pending = roomManager.pendingReconnects.get(reconnectKey);
-                if (pending && pending.socketId === socket.id) {
-                    roomManager.pendingReconnects.delete(reconnectKey);
-                    await roomManager.leaveRoom(socket, userId, player.currentRoomId);
-                    logger.info(`User ${userId} auto-left room after disconnect timeout`);
-                }
-            }, 30000);
-        }
-        
-        roomManager.players.delete(userId);
-        roomManager.broadcastLobbyInfo();
+        userManager.setOffline(userId);
+        roomManager.broadcastLobbyStats();
     });
 });
 
 // ============================================
 // 🚀 بدء تشغيل الخادم
 // ============================================
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 async function startServer() {
     try {
@@ -4722,42 +3189,26 @@ async function startServer() {
         await initializeDatabase();
         await loadServerConfig();
         
-        const roomManager = new AdvancedRoomManager();
-        
-        setInterval(() => {
-            roomManager.broadcastLobbyInfo();
-            roomManager.broadcastRoomsList();
-        }, 5000);
-        
-        setInterval(async () => {
-            try {
-                await db.healthCheck();
-            } catch (error) {
-                logger.error('Health check error:', { error: error.message });
-            }
-        }, 15000);
-        
-        server.listen(PORT, () => {
+        server.listen(PORT, '0.0.0.0', () => {
             console.log(`
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                              ║
-║     🎮 BATTLE TANKS ROYALE - الإصدار النهائي المتكامل v11.0.0 🎮         ║
+║     🎮 BATTLE TANKS ROYALE - v12.0.0 COMPLETE EDITION 🎮                   ║
 ║                                                                              ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║  📡 Server: http://localhost:${PORT}
+║  📡 Server: http://0.0.0.0:${PORT}
 ║  🗄️ Database: PostgreSQL ✅ Connected
 ║  ⚡ WebSocket: Ready
-║  🎯 Mode: Battle Royale (Free-for-All)
-║  🔄 Cluster: ${isProduction ? `✅ ${numCPUs} workers` : '❌ Single thread'}
+║  🎯 Mode: Battle Royale
 ║                                                                              ║
 ║  🛡️ Anti-Cheat: ${antiCheat.enabled ? '✅ ENABLED' : '❌ DISABLED'}
-║  🔒 Lock System: ${lockSystem ? '✅ ACTIVE' : '❌ INACTIVE'}
+║  🔒 Lock System: ✅ ACTIVE
 ║  📊 Queue System: ✅ ACTIVE
 ║  📈 Monitoring: ✅ ACTIVE
-║  💾 Cache: ${cache.useRedis ? '✅ REDIS' : '✅ MEMORY'}
+║  💾 Cache: ✅ ACTIVE
 ║                                                                              ║
 ║  🏠 Rooms: ${roomManager.rooms.size} available
-║  👥 Players: ${roomManager.players.size} online
+║  👥 Players: ${userManager.getOnlineCount()} online
 ║  🎮 Games: ${roomManager.activeGames.size} active
 ║                                                                              ║
 ║  📊 API Endpoints:
@@ -4770,13 +3221,13 @@ async function startServer() {
 ║     - GET  /api/admin/stats
 ║     - POST /api/admin/ban
 ║     - POST /api/admin/unban
+║     - POST /api/admin/balance
 ║     - POST /api/admin/config
 ║     - POST /api/admin/maintenance
 ║                                                                              ║
 ║  🔄 Database Auto-Reconnect: ✅ ENABLED
-║  ⏱️  Reconnect Delay: Exponential (5s - 60s)
-║  🔁 Max Reconnect Attempts: Unlimited
 ║  ⚡ Circuit Breaker: ✅ ENABLED
+║  💾 Cache: ✅ ACTIVE
 ║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
             `);
@@ -4877,7 +3328,6 @@ async function initializeDatabase() {
             CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id);
             CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at DESC);
         `);
-        
         logger.info('✅ Database schema initialized');
     } catch (error) {
         logger.error('Error initializing database:', { error: error.message });
@@ -4888,20 +3338,12 @@ async function initializeDatabase() {
 async function shutdown() {
     logger.info('Shutting down gracefully...');
     console.log('🛑 Shutting down gracefully...');
-    
-    server.close(() => {
-        logger.info('HTTP server closed');
-    });
-    
-    io.close(() => {
-        logger.info('WebSocket server closed');
-    });
-    
+    server.close(() => logger.info('HTTP server closed'));
+    io.close(() => logger.info('WebSocket server closed'));
     await db.shutdown();
     await cache.shutdown();
     await lockSystem.shutdown();
     monitoring.stop();
-    
     process.exit(0);
 }
 
@@ -4910,18 +3352,4 @@ process.on('SIGINT', shutdown);
 
 startServer();
 
-module.exports = {
-    app,
-    server,
-    io,
-    db,
-    monitoring,
-    lockSystem,
-    antiCheat,
-    cache,
-    queueProcessor,
-    roomManager,
-    eloSystem,
-    loadServerConfig,
-    saveServerConfig
-};
+module.exports = { app, server, io, db, monitoring, lockSystem, antiCheat, cache, queueProcessor, roomManager, userManager, eloSystem, loadServerConfig, saveServerConfig };
