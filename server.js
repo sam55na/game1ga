@@ -1,5 +1,5 @@
 // ================================================================
-// 🚀 BATTLE TANKS ELITE v6.0 - خادم احترافي AAA
+// 🚀 BATTLE TANKS ELITE v6.1 - خادم احترافي AAA (مصحح)
 // ================================================================
 // جميع الحقوق محفوظة © 2026 - النسخة النهائية للإنتاج
 // ================================================================
@@ -34,17 +34,6 @@ const logger = winston.createLogger({
     ),
     defaultMeta: { service: 'battle-tanks' },
     transports: [
-        new winston.transports.File({ 
-            filename: 'logs/error.log', 
-            level: 'error', 
-            maxsize: 10485760, 
-            maxFiles: 5 
-        }),
-        new winston.transports.File({ 
-            filename: 'logs/combined.log', 
-            maxsize: 10485760, 
-            maxFiles: 5 
-        }),
         new winston.transports.Console({
             format: winston.format.combine(
                 winston.format.colorize(),
@@ -60,18 +49,16 @@ const logger = winston.createLogger({
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
-    max: 150,
+    max: 100,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
     maxUses: 7500,
-    allowExitOnIdle: false,
 });
 
 // مراقبة الأخطاء وإعادة المحاولة الذكية
 let isReconnecting = false;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 20;
-let reconnectTimer = null;
 
 pool.on('error', async (err) => {
     logger.error('❌ PostgreSQL Pool Error:', err);
@@ -102,7 +89,7 @@ async function reconnectDatabase() {
             const newPool = new Pool({
                 connectionString: process.env.DATABASE_URL,
                 ssl: { rejectUnauthorized: false },
-                max: 150,
+                max: 100,
                 idleTimeoutMillis: 30000,
                 connectionTimeoutMillis: 10000,
                 maxUses: 7500,
@@ -137,7 +124,7 @@ async function initializeDatabase() {
         `CREATE EXTENSION IF NOT EXISTS "pgcrypto";`,
 
         // ============================================================
-        // جدول المستخدمين (مع كل الحقول المطلوبة)
+        // جدول المستخدمين (بدون عمود email - نستخدم telegram_id فقط)
         // ============================================================
         `
         CREATE TABLE IF NOT EXISTS users (
@@ -145,13 +132,10 @@ async function initializeDatabase() {
             telegram_id BIGINT UNIQUE NOT NULL,
             telegram_username VARCHAR(255),
             username VARCHAR(255) UNIQUE,
-            email VARCHAR(255) UNIQUE,
-            password_hash VARCHAR(255),
             balance INTEGER DEFAULT 100 NOT NULL CHECK (balance >= 0),
             is_admin BOOLEAN DEFAULT FALSE,
             is_banned BOOLEAN DEFAULT FALSE,
             is_verified BOOLEAN DEFAULT FALSE,
-            verification_code VARCHAR(6),
             games_played INTEGER DEFAULT 0,
             wins INTEGER DEFAULT 0,
             losses INTEGER DEFAULT 0,
@@ -350,7 +334,6 @@ async function initializeDatabase() {
         // ============================================================
         `CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);`,
         `CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);`,
-        `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);`,
         `CREATE INDEX IF NOT EXISTS idx_users_last_active ON users(last_active);`,
         `CREATE INDEX IF NOT EXISTS idx_users_is_admin ON users(is_admin);`,
         `CREATE INDEX IF NOT EXISTS idx_users_is_banned ON users(is_banned);`,
@@ -435,8 +418,8 @@ async function initializeDatabase() {
                 longest_streak = GREATEST(longest_streak, current_streak + CASE WHEN p_won THEN 1 ELSE 0 END),
                 total_playtime = total_playtime + p_playtime,
                 accuracy = CASE
-                    WHEN total_shots_fired + p_shots_fired > 0 
-                    THEN ((total_shots_hit + p_shots_hit)::FLOAT / (total_shots_fired + p_shots_fired)::FLOAT) * 100
+                    WHEN (shots_fired + p_shots_fired) > 0 
+                    THEN ((shots_hit + p_shots_hit)::FLOAT / (shots_fired + p_shots_fired)::FLOAT) * 100
                     ELSE accuracy
                 END
             WHERE id = p_user_id;
@@ -552,23 +535,10 @@ async function initializeDatabase() {
     // ============================================================
     const adminTelegramId = parseInt(process.env.ADMIN_TELEGRAM_ID) || 999999999;
     await pool.query(
-        `INSERT INTO users (telegram_id, username, email, balance, is_admin, is_verified)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO users (telegram_id, username, balance, is_admin, is_verified)
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (telegram_id) DO UPDATE SET is_admin = TRUE, is_verified = TRUE`,
-        [adminTelegramId, 'Admin', 'admin@battletanks.com', 99999, true, true]
-    );
-
-    // ============================================================
-    // إنشاء أنواع الغرف الافتراضية
-    // ============================================================
-    await pool.query(
-        `INSERT INTO room_types (name, max_seats, seat_price, prefix, map_id, map_name, game_mode)
-         VALUES 
-            ('غرفة المبتدئين', 2, 1, 'beginner', 'desert', 'صحراء', 'team_deathmatch'),
-            ('غرفة المتقدمين', 4, 5, 'advanced', 'urban', 'مدينة', 'team_deathmatch'),
-            ('غرفة المحترفين', 6, 10, 'pro', 'arena', 'ساحة', 'team_deathmatch'),
-            ('غرفة الأساطير', 8, 25, 'legend', 'fortress', 'قلعة', 'team_deathmatch')
-         ON CONFLICT (name) DO NOTHING`
+        [adminTelegramId, 'Admin', 99999, true, true]
     );
 
     logger.info('✅ Database schema initialized successfully!');
@@ -589,7 +559,7 @@ app.use(helmet({
             defaultSrc: ["'self'"],
             scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 
                 "https://cdn.socket.io", "https://unpkg.com", "https://cdnjs.cloudflare.com", 
-                "https://www.gstatic.com", "https://cdn.jsdelivr.net", "https://raw.githubusercontent.com"],
+                "https://www.gstatic.com", "https://cdn.jsdelivr.net"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
             imgSrc: ["'self'", "data:", "https:", "blob:"],
@@ -615,9 +585,7 @@ app.use(compression({
     filter: (req, res) => {
         if (req.headers['x-no-compression']) return false;
         return compression.filter(req, res);
-    },
-    brotli: true,
-    zlib: { level: 9, memLevel: 9 }
+    }
 }));
 
 // ================================================================
@@ -831,13 +799,7 @@ const io = socketIo(server, {
     perMessageDeflate: {
         threshold: 1024,
         zlib: { level: 9, memLevel: 9 }
-    },
-    cookie: {
-        name: 'io',
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
-    },
+    }
 });
 
 // ================================================================
@@ -886,12 +848,11 @@ async function getUserById(userId) {
 
 async function createUser(telegramId, username, ip) {
     const displayName = username || `User_${telegramId}`;
-    const email = `${telegramId}@telegram.user`;
     const result = await pool.query(
-        `INSERT INTO users (telegram_id, telegram_username, username, email, balance, last_ip, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+        `INSERT INTO users (telegram_id, telegram_username, username, balance, last_ip, created_at)
+         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
          RETURNING *`,
-        [telegramId, username || '', displayName, email, 100, ip || null]
+        [telegramId, username || '', displayName, 100, ip || null]
     );
     return result.rows[0];
 }
@@ -962,19 +923,16 @@ class ActionQueue {
     async enqueue(actionId, userId, action, priority = 0) {
         const key = `${userId}_${actionId}`;
         
-        // التحقق من القفل
         if (this.locks.has(key)) {
             throw new Error('Action already in progress');
         }
 
-        // إضافة إلى الطابور
         if (!this.queues.has(key)) {
             this.queues.set(key, []);
         }
         const queue = this.queues.get(key);
         queue.push({ action, priority, timestamp: Date.now() });
 
-        // معالجة الطابور
         await this.processQueue(key, userId);
         return true;
     }
@@ -992,7 +950,6 @@ class ActionQueue {
                     await item.action();
                 } catch (error) {
                     logger.error(`❌ Queue action failed for ${userId}:`, error);
-                    // إعادة المحاولة لمرة واحدة
                     if (item.retryCount < 1) {
                         item.retryCount = (item.retryCount || 0) + 1;
                         queue.unshift(item);
@@ -1042,7 +999,6 @@ io.use(async (socket, next) => {
         }
     }
     
-    // المصادقة سيتم عبر حدث auth
     next();
 });
 
@@ -1060,9 +1016,7 @@ io.on('connection', (socket) => {
         try {
             const { telegramId, username, token } = data;
 
-            // ============================================================
-            // محاولة إعادة الاتصال عبر التوكن (مع التحقق من الصلاحية)
-            // ============================================================
+            // محاولة إعادة الاتصال عبر التوكن
             if (token) {
                 const decoded = verifyToken(token);
                 if (decoded && !decoded.expired) {
@@ -1116,9 +1070,7 @@ io.on('connection', (socket) => {
                 }
             }
 
-            // ============================================================
-            // مصادقة جديدة عبر تيليغرام (مع نظام طوابير)
-            // ============================================================
+            // مصادقة جديدة
             if (!telegramId) {
                 socket.emit('auth_error', { message: 'معرف تيليغرام مطلوب' });
                 return;
@@ -1145,7 +1097,6 @@ io.on('connection', (socket) => {
 
             // معالجة المصادقة عبر الطابور
             await actionQueue.enqueue('auth', telegramId, async () => {
-                // البحث عن المستخدم أو إنشاؤه
                 let user = await getUserByTelegramId(telegramId);
                 let isNewUser = false;
 
@@ -1160,10 +1111,8 @@ io.on('connection', (socket) => {
                     );
                 }
 
-                // إنشاء التوكنات
                 const { token: newToken, refreshToken } = generateTokens(user.id);
 
-                // إنشاء الجلسة
                 await createSession(
                     user.id,
                     socket.id,
@@ -1174,7 +1123,6 @@ io.on('connection', (socket) => {
                     deviceId
                 );
 
-                // تخزين في الذاكرة
                 const playerData = {
                     userId: user.id,
                     telegramId: user.telegram_id,
@@ -1190,7 +1138,6 @@ io.on('connection', (socket) => {
                 };
                 players.set(socket.id, playerData);
 
-                // تسجيل التدقيق
                 await logAudit(
                     user.id,
                     isNewUser ? 'register' : 'login',
@@ -1199,7 +1146,6 @@ io.on('connection', (socket) => {
                     userAgent
                 );
 
-                // إرسال نجاح المصادقة
                 socket.emit('auth_success', {
                     userId: user.id,
                     telegramId: user.telegram_id,
@@ -1216,7 +1162,6 @@ io.on('connection', (socket) => {
                     message: isNewUser ? '✅ تم إنشاء الحساب بنجاح!' : '✅ تم تسجيل الدخول بنجاح!',
                 });
 
-                // إرسال إشعار ترحيبي
                 if (isNewUser) {
                     await createNotification(
                         user.id,
@@ -1299,7 +1244,6 @@ io.on('connection', (socket) => {
         }
 
         try {
-            // تحديث الرصيد من قاعدة البيانات
             const result = await pool.query(
                 'SELECT balance, games_played, wins, total_kills, total_deaths, accuracy FROM users WHERE id = $1',
                 [player.userId]
@@ -1314,7 +1258,6 @@ io.on('connection', (socket) => {
                 player.accuracy = result.rows[0].accuracy || 0;
             }
 
-            // إرسال بيانات اللوبي
             socket.emit('lobby_joined', {
                 balance: player.balance,
                 userId: player.userId,
@@ -1328,10 +1271,8 @@ io.on('connection', (socket) => {
                 isBanned: player.isBanned || false,
             });
 
-            // إرسال قائمة الغرف
             await sendRoomsList(socket);
 
-            // إرسال الإشعارات غير المقروءة
             const notifications = await pool.query(
                 'SELECT * FROM notifications WHERE user_id = $1 AND is_read = FALSE ORDER BY created_at DESC LIMIT 10',
                 [player.userId]
@@ -1453,9 +1394,6 @@ io.on('connection', (socket) => {
             return;
         }
 
-        // ============================================================
-        // قفل لمنع تكرار الطلبات (Anti-Spam)
-        // ============================================================
         const lockKey = `join_${player.userId}`;
         if (joinLocks.has(lockKey)) {
             socket.emit('error', { message: 'جاري معالجة طلبك، انتظر قليلاً...' });
@@ -1467,11 +1405,7 @@ io.on('connection', (socket) => {
         try {
             const { roomId } = data;
 
-            // معالجة الانضمام عبر الطابور
             await actionQueue.enqueue('join_room', player.userId, async () => {
-                // ============================================================
-                // التحقق من الغرفة (مع قفل على مستوى قاعدة البيانات)
-                // ============================================================
                 const roomResult = await pool.query(
                     'SELECT * FROM rooms WHERE id = $1 FOR UPDATE',
                     [roomId]
@@ -1484,19 +1418,16 @@ io.on('connection', (socket) => {
 
                 const room = roomResult.rows[0];
 
-                // التحقق من حالة الغرفة
                 if (room.status !== 'waiting') {
                     socket.emit('error', { message: 'المعركة جارية، انتظر حتى تنتهي' });
                     return;
                 }
 
-                // التحقق من العدد
                 if (room.players_count >= room.max_seats) {
                     socket.emit('error', { message: 'الغرفة ممتلئة' });
                     return;
                 }
 
-                // التحقق من وجود اللاعب بالفعل في الغرفة
                 const existingPlayer = await pool.query(
                     'SELECT * FROM room_players WHERE room_id = $1 AND user_id = $2 AND left_at IS NULL',
                     [roomId, player.userId]
@@ -1507,9 +1438,6 @@ io.on('connection', (socket) => {
                     return;
                 }
 
-                // ============================================================
-                // التحقق من الرصيد (مع قفل)
-                // ============================================================
                 const userResult = await pool.query(
                     'SELECT balance FROM users WHERE id = $1 FOR UPDATE',
                     [player.userId]
@@ -1523,9 +1451,6 @@ io.on('connection', (socket) => {
                     return;
                 }
 
-                // ============================================================
-                // خصم الرصيد وتسجيل المعاملة
-                // ============================================================
                 const newBalance = balance - room.seat_price;
                 await pool.query(
                     'UPDATE users SET balance = $1 WHERE id = $2',
@@ -1538,31 +1463,23 @@ io.on('connection', (socket) => {
                     [player.userId, 'game_entry', room.seat_price, newBalance, `دخول إلى ${room.name}`, roomId]
                 );
 
-                // ============================================================
-                // إضافة اللاعب إلى الغرفة
-                // ============================================================
                 await pool.query(
                     `INSERT INTO room_players (room_id, user_id, socket_id, paid_amount, team, position_x, position_z)
                      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
                     [roomId, player.userId, socket.id, room.seat_price, 1, 0, 0]
                 );
 
-                // تحديث عدد اللاعبين
                 const newCount = room.players_count + 1;
                 await pool.query(
                     'UPDATE rooms SET players_count = $1 WHERE id = $2',
                     [newCount, roomId]
                 );
 
-                // تحديث الذاكرة المؤقتة
                 player.roomId = roomId;
                 player.balance = newBalance;
                 player.team = 1;
                 socket.join(roomId);
 
-                // ============================================================
-                // إرسال تأكيد الانضمام
-                // ============================================================
                 const needed = room.max_seats - newCount;
                 socket.emit('room_joined', {
                     roomId: roomId,
@@ -1579,7 +1496,6 @@ io.on('connection', (socket) => {
                     message: `✅ تم الانضمام إلى ${room.name}\n💰 تم خصم ${room.seat_price}$\n👥 ${newCount}/${room.max_seats}\n⏳ ينتظر ${needed} لاعب(ين)`,
                 });
 
-                // إعلام باقي اللاعبين في الغرفة
                 io.to(roomId).emit('player_joined', {
                     userId: player.userId,
                     username: player.username,
@@ -1589,10 +1505,8 @@ io.on('connection', (socket) => {
                     team: 1,
                 });
 
-                // تحديث قائمة الغرف
                 await sendRoomsListToAll();
 
-                // تسجيل التدقيق
                 await logAudit(
                     player.userId,
                     'join_room',
@@ -1603,9 +1517,6 @@ io.on('connection', (socket) => {
 
                 logger.info(`👥 ${player.username} joined ${room.name} (${newCount}/${room.max_seats})`);
 
-                // ============================================================
-                // بدء اللعبة إذا اكتملت الغرفة
-                // ============================================================
                 if (newCount >= room.max_seats) {
                     await startGame(roomId);
                 }
@@ -1633,7 +1544,6 @@ io.on('connection', (socket) => {
         try {
             const roomId = player.roomId;
 
-            // التحقق من حالة الغرفة
             const roomResult = await pool.query(
                 'SELECT status, seat_price, name FROM rooms WHERE id = $1',
                 [roomId]
@@ -1646,13 +1556,11 @@ io.on('connection', (socket) => {
 
             const room = roomResult.rows[0];
 
-            // لا يمكن المغادرة أثناء المعركة
             if (room.status !== 'waiting') {
                 socket.emit('error', { message: 'لا يمكن مغادرة الغرفة أثناء المعركة' });
                 return;
             }
 
-            // إزالة من room_players
             const rpResult = await pool.query(
                 `DELETE FROM room_players
                  WHERE room_id = $1 AND user_id = $2
@@ -1663,20 +1571,17 @@ io.on('connection', (socket) => {
             if (rpResult.rows.length > 0) {
                 const paidAmount = rpResult.rows[0].paid_amount || room.seat_price;
 
-                // إعادة الرصيد
                 await pool.query(
                     'UPDATE users SET balance = balance + $1 WHERE id = $2',
                     [paidAmount, player.userId]
                 );
 
-                // تحديث الرصيد في الذاكرة
                 const balanceResult = await pool.query(
                     'SELECT balance FROM users WHERE id = $1',
                     [player.userId]
                 );
                 player.balance = balanceResult.rows[0]?.balance || 100;
 
-                // تسجيل المعاملة
                 await pool.query(
                     `INSERT INTO transactions (user_id, type, amount, balance_after, description, room_id)
                      VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -1684,13 +1589,11 @@ io.on('connection', (socket) => {
                 );
             }
 
-            // تحديث عدد اللاعبين
             await pool.query(
                 'UPDATE rooms SET players_count = players_count - 1 WHERE id = $1',
                 [roomId]
             );
 
-            // تحديث الذاكرة
             player.roomId = null;
             socket.leave(roomId);
 
@@ -1700,7 +1603,6 @@ io.on('connection', (socket) => {
                 message: '🚪 تم مغادرة الغرفة بنجاح\n💰 تم إعادة الرصيد',
             });
 
-            // إعلام باقي اللاعبين
             io.to(roomId).emit('player_left', {
                 userId: player.userId,
                 username: player.username,
@@ -1722,13 +1624,11 @@ io.on('connection', (socket) => {
         try {
             logger.info(`🎮 Starting game in room ${roomId}`);
 
-            // تحديث حالة الغرفة
             await pool.query(
                 'UPDATE rooms SET status = $1, started_at = CURRENT_TIMESTAMP WHERE id = $2',
                 ['active', roomId]
             );
 
-            // جلب اللاعبين
             const playersResult = await pool.query(
                 `SELECT rp.*, u.username, u.id as user_id, u.balance
                  FROM room_players rp
@@ -1745,13 +1645,8 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            // ============================================================
-            // توزيع الفرق بشكل متقدم (توزيع متوازن)
-            // ============================================================
-            const teamSize = Math.floor(roomPlayers.length / 2);
+            // توزيع الفرق بشكل متوازن
             const shuffled = [...roomPlayers].sort(() => Math.random() - 0.5);
-            
-            // توزيع بناءً على المستوى (إحصائيات)
             const sorted = [...roomPlayers].sort((a, b) => 
                 (b.wins || 0) - (a.wins || 0) || (b.games_played || 0) - (a.games_played || 0)
             );
@@ -1767,7 +1662,6 @@ io.on('connection', (socket) => {
                 }
             }
 
-            // مواقع البداية حسب الخريطة
             const startPositions = [
                 { x: -120, z: -80, team: 1 },
                 { x: 120, z: 80, team: 2 },
@@ -1786,7 +1680,6 @@ io.on('connection', (socket) => {
             const playerData = [];
             let posIndex = 0;
 
-            // تحديث الفرق للمشاركين
             for (const player of roomPlayers) {
                 const isTeam1 = team1.some(p => p.user_id === player.user_id);
                 const team = isTeam1 ? 1 : 2;
@@ -1812,9 +1705,6 @@ io.on('connection', (socket) => {
                 });
             }
 
-            // ============================================================
-            // إرسال بدء اللعبة لكل لاعب (مع بيانات متقدمة)
-            // ============================================================
             const roomInfo = rooms.get(roomId);
             
             for (const player of roomPlayers) {
@@ -1846,7 +1736,6 @@ io.on('connection', (socket) => {
                 }
             }
 
-            // إعلام جميع اللاعبين في الغرفة
             io.to(roomId).emit('game_started', {
                 roomId: roomId,
                 playersCount: roomPlayers.length,
@@ -1856,9 +1745,7 @@ io.on('connection', (socket) => {
                 },
             });
 
-            // ============================================================
-            // بدء تحديثات حالة اللعبة (كل 33ms = 30 FPS)
-            // ============================================================
+            // بدء تحديثات الحالة
             let gameState = {
                 roomId: roomId,
                 players: playerData,
@@ -1873,7 +1760,6 @@ io.on('connection', (socket) => {
 
             const interval = setInterval(async () => {
                 try {
-                    // التحقق من أن الغرفة لا تزال نشطة
                     const statusResult = await pool.query(
                         'SELECT status FROM rooms WHERE id = $1',
                         [roomId]
@@ -1885,7 +1771,6 @@ io.on('connection', (socket) => {
                         return;
                     }
 
-                    // جلب مواقع اللاعبين من قاعدة البيانات
                     const posResult = await pool.query(
                         `SELECT user_id, position_x, position_z, rotation, health, team, is_alive, kills, deaths
                          FROM room_players
@@ -1906,11 +1791,9 @@ io.on('connection', (socket) => {
                             deaths: p.deaths || 0,
                         }));
 
-                    // تحديث حالة اللعبة
                     const team1Alive = posResult.rows.filter(p => p.team === 1 && p.is_alive).length;
                     const team2Alive = posResult.rows.filter(p => p.team === 2 && p.is_alive).length;
 
-                    // إرسال تحديث إلى جميع اللاعبين في الغرفة
                     io.to(roomId).emit('game_state_update', {
                         players: playersUpdate,
                         team1Alive: team1Alive,
@@ -1921,13 +1804,10 @@ io.on('connection', (socket) => {
                 } catch (error) {
                     logger.error('❌ Game state update error:', error);
                 }
-            }, 33); // ~30 FPS
+            }, 33);
 
             roomIntervals.set(roomId, interval);
 
-            // ============================================================
-            // جدولة نهاية اللعبة (حسب المدة)
-            // ============================================================
             const gameDuration = (roomInfo?.duration || 300) * 1000;
             const timer = setTimeout(async () => {
                 await endGame(roomId, '⏰ انتهت مدة المعركة!');
@@ -1949,7 +1829,6 @@ io.on('connection', (socket) => {
         try {
             logger.info(`🏆 Ending game in room ${roomId}`);
 
-            // إزالة المؤقتات
             if (roomTimers.has(roomId)) {
                 clearTimeout(roomTimers.get(roomId));
                 roomTimers.delete(roomId);
@@ -1966,7 +1845,6 @@ io.on('connection', (socket) => {
                 room.gameInterval = null;
             }
 
-            // جلب اللاعبين مع إحصائياتهم
             const playersResult = await pool.query(
                 `SELECT rp.*, u.username, u.id as user_id
                  FROM room_players rp
@@ -1977,15 +1855,11 @@ io.on('connection', (socket) => {
 
             const alivePlayers = playersResult.rows.filter(p => p.is_alive && p.health > 0);
 
-            // ============================================================
-            // تحديد الفائز (نظام متقدم)
-            // ============================================================
             let winnerTeam = null;
             let winnerName = 'تعادل';
             let team1Score = 0;
             let team2Score = 0;
 
-            // حساب النقاط
             for (const p of playersResult.rows) {
                 if (p.team === 1) {
                     team1Score += (p.kills || 0) * 10 + (p.damage_dealt || 0) / 100;
@@ -2001,7 +1875,6 @@ io.on('connection', (socket) => {
                 winnerTeam = 2;
                 winnerName = 'الفريق الثاني 🔴';
             } else {
-                // في حالة التعادل، الفريق الذي لديه المزيد من اللاعبين الأحياء
                 const aliveTeam1 = alivePlayers.filter(p => p.team === 1).length;
                 const aliveTeam2 = alivePlayers.filter(p => p.team === 2).length;
                 if (aliveTeam1 > aliveTeam2) {
@@ -2015,9 +1888,6 @@ io.on('connection', (socket) => {
                 }
             }
 
-            // ============================================================
-            // توزيع المكافآت
-            // ============================================================
             const baseReward = 10;
             const killBonus = 2;
             const damageBonus = 1;
@@ -2036,14 +1906,13 @@ io.on('connection', (socket) => {
                     reward = Math.floor(kills * killBonus / 2);
                 }
 
-                // تحديث إحصائيات المستخدم
                 await pool.query(
                     `SELECT update_user_stats($1, $2, $3, $4, $5, $6, $7, $8)`,
                     [
                         player.user_id,
                         kills,
                         player.deaths || 0,
-                        0, // assists
+                        0,
                         damage,
                         player.shots_fired || 0,
                         player.shots_hit || 0,
@@ -2052,7 +1921,6 @@ io.on('connection', (socket) => {
                     ]
                 );
 
-                // تحديث الرصيد
                 let newBalance = 0;
                 if (reward > 0) {
                     const balanceResult = await pool.query(
@@ -2087,9 +1955,6 @@ io.on('connection', (socket) => {
                 });
             }
 
-            // ============================================================
-            // إرسال إشعار النهاية لكل لاعب
-            // ============================================================
             const duration = Math.floor((Date.now() - (room?.startTime || Date.now())) / 1000);
 
             for (const update of playerUpdates) {
@@ -2110,7 +1975,6 @@ io.on('connection', (socket) => {
                 }
             }
 
-            // إعلام جميع اللاعبين في الغرفة
             io.to(roomId).emit('game_finished', {
                 roomId: roomId,
                 winner: winnerName,
@@ -2120,7 +1984,6 @@ io.on('connection', (socket) => {
                 team2Score: team2Score,
             });
 
-            // تحديث حالة الغرفة
             await pool.query(
                 `UPDATE rooms
                  SET status = 'ended', ended_at = CURRENT_TIMESTAMP, winner_team = $1, game_data = $2
@@ -2130,14 +1993,10 @@ io.on('connection', (socket) => {
 
             logger.info(`🏆 Game ended in room ${roomId}, winner: ${winnerName}`);
 
-            // ============================================================
-            // إعادة تعيين الغرفة بعد 5 ثوانٍ
-            // ============================================================
             setTimeout(async () => {
                 await resetRoom(roomId);
             }, 5000);
 
-            // تحديث قائمة الغرف
             await sendRoomsListToAll();
 
         } catch (error) {
@@ -2152,13 +2011,11 @@ io.on('connection', (socket) => {
         try {
             logger.info(`🔄 Resetting room ${roomId}`);
 
-            // حذف جميع اللاعبين من الغرفة
             await pool.query(
                 `UPDATE room_players SET left_at = CURRENT_TIMESTAMP WHERE room_id = $1 AND left_at IS NULL`,
                 [roomId]
             );
 
-            // إعادة تعيين حالة الغرفة
             await pool.query(
                 `UPDATE rooms
                  SET status = 'waiting', players_count = 0, started_at = NULL, ended_at = NULL, winner_team = NULL
@@ -2166,7 +2023,6 @@ io.on('connection', (socket) => {
                 [roomId]
             );
 
-            // إزالة من الذاكرة المؤقتة
             if (rooms.has(roomId)) {
                 const room = rooms.get(roomId);
                 room.status = 'waiting';
@@ -2176,12 +2032,10 @@ io.on('connection', (socket) => {
                 room.gameInterval = null;
             }
 
-            // إزالة من gameStates
             gameStates.delete(roomId);
 
             logger.info(`✅ Room ${roomId} reset successfully`);
 
-            // إعلام اللاعبين
             io.to(roomId).emit('room_reset', {
                 roomId: roomId,
                 message: '✅ الغرفة جاهزة لمعركة جديدة!',
@@ -2195,24 +2049,20 @@ io.on('connection', (socket) => {
     }
 
     // ============================================================
-    // 🎯 أحداث اللعبة (مع تحقق من الصلاحية)
+    // 🎯 أحداث اللعبة
     // ============================================================
-
-    // حركة اللاعب (مع تحقق من السرعة لمنع الغش)
     let lastMoveTime = new Map();
 
     socket.on('move', async (data) => {
         const player = players.get(socket.id);
         if (!player || !player.roomId) return;
 
-        // التحقق من سرعة الحركة (منع التليفورت)
         const now = Date.now();
         const lastMove = lastMoveTime.get(socket.id) || 0;
-        if (now - lastMove < 16) return; // ~60 FPS
+        if (now - lastMove < 16) return;
         lastMoveTime.set(socket.id, now);
 
         try {
-            // التحقق من أن اللاعب في الغرفة
             const check = await pool.query(
                 'SELECT is_alive FROM room_players WHERE room_id = $1 AND user_id = $2',
                 [player.roomId, player.userId]
@@ -2220,7 +2070,6 @@ io.on('connection', (socket) => {
 
             if (check.rows.length === 0 || !check.rows[0].is_alive) return;
 
-            // تحديث الموقع
             await pool.query(
                 `UPDATE room_players
                  SET position_x = $1, position_z = $2, rotation = $3
@@ -2228,7 +2077,6 @@ io.on('connection', (socket) => {
                 [data.position.x, data.position.z, data.rotation || 0, player.roomId, player.userId]
             );
 
-            // بث الحركة للآخرين (مع تنعيم)
             socket.to(player.roomId).emit('player_moved', {
                 userId: player.userId,
                 position: data.position,
@@ -2241,20 +2089,17 @@ io.on('connection', (socket) => {
         }
     });
 
-    // إطلاق النار (مع تحقق من التباطؤ)
     let lastShotTime = new Map();
 
     socket.on('shoot', (data) => {
         const player = players.get(socket.id);
         if (!player || !player.roomId) return;
 
-        // التحقق من معدل الإطلاق (منع الغش)
         const now = Date.now();
         const lastShot = lastShotTime.get(socket.id) || 0;
-        if (now - lastShot < 500) return; // 2 طلقة في الثانية كحد أقصى
+        if (now - lastShot < 500) return;
         lastShotTime.set(socket.id, now);
 
-        // تحديث عدد الطلقات
         pool.query(
             'UPDATE room_players SET shots_fired = shots_fired + 1 WHERE room_id = $1 AND user_id = $2',
             [player.roomId, player.userId]
@@ -2269,21 +2114,18 @@ io.on('connection', (socket) => {
         });
     });
 
-    // ضرر (مع تحقق متقدم)
     socket.on('damage', async (data) => {
         const player = players.get(socket.id);
         if (!player || !player.roomId) return;
 
         try {
-            const { targetId, damage, weaponType } = data;
+            const { targetId, damage } = data;
 
-            // التحقق من أن الضرر معقول (منع الغش)
             if (damage > 100 || damage < 1) {
                 logger.warn(`⚠️ Suspicious damage value from ${player.username}: ${damage}`);
                 return;
             }
 
-            // التحقق من أن الهدف موجود
             const targetCheck = await pool.query(
                 'SELECT is_alive, team, health FROM room_players WHERE room_id = $1 AND user_id = $2',
                 [player.roomId, targetId]
@@ -2293,12 +2135,10 @@ io.on('connection', (socket) => {
 
             const target = targetCheck.rows[0];
             
-            // منع إيذاء الزملاء (إذا كان الفريق نفسه)
             if (target.team === player.team) {
                 return;
             }
 
-            // تحديث صحة الهدف
             const result = await pool.query(
                 `UPDATE room_players
                  SET health = GREATEST(0, health - $1), damage_taken = damage_taken + $1
@@ -2310,14 +2150,12 @@ io.on('connection', (socket) => {
             if (result.rows.length > 0) {
                 const newHealth = result.rows[0].health;
 
-                // تحديث ضرر المهاجم
                 await pool.query(
                     `UPDATE room_players SET damage_dealt = damage_dealt + $1, shots_hit = shots_hit + 1
                      WHERE room_id = $2 AND user_id = $3`,
                     [damage, player.roomId, player.userId]
                 );
 
-                // إرسال تحديث الصحة
                 io.to(player.roomId).emit('health_update', {
                     userId: targetId,
                     health: newHealth,
@@ -2325,7 +2163,6 @@ io.on('connection', (socket) => {
                     attackerId: player.userId,
                 });
 
-                // إذا مات اللاعب
                 if (newHealth <= 0) {
                     await pool.query(
                         `UPDATE room_players SET is_alive = FALSE, deaths = deaths + 1
@@ -2346,7 +2183,6 @@ io.on('connection', (socket) => {
                         position: data.position,
                     });
 
-                    // إعلام الهدف بأنه مات
                     const targetSocket = await getSocketByUserId(targetId);
                     if (targetSocket) {
                         io.to(targetSocket).emit('you_were_eliminated', {
@@ -2356,7 +2192,6 @@ io.on('connection', (socket) => {
                         });
                     }
 
-                    // التحقق من انتهاء اللعبة
                     const aliveResult = await pool.query(
                         `SELECT COUNT(*) FROM room_players
                          WHERE room_id = $1 AND is_alive = TRUE AND left_at IS NULL`,
@@ -2375,7 +2210,7 @@ io.on('connection', (socket) => {
     });
 
     // ============================================================
-    // 📊 طلب الإحصائيات المتقدمة
+    // 📊 طلب الإحصائيات
     // ============================================================
     socket.on('get_stats', async () => {
         const player = players.get(socket.id);
@@ -2480,7 +2315,7 @@ io.on('connection', (socket) => {
     });
 
     // ============================================================
-    // 💓 Ping/Pong للحفاظ على الاتصال
+    // 💓 Ping/Pong
     // ============================================================
     socket.on('ping', (data) => {
         socket.emit('pong', {
@@ -2490,7 +2325,7 @@ io.on('connection', (socket) => {
     });
 
     // ============================================================
-    // 🔌 انقطاع الاتصال (مع تنظيف شامل)
+    // 🔌 انقطاع الاتصال
     // ============================================================
     socket.on('disconnect', async () => {
         const player = players.get(socket.id);
@@ -2498,7 +2333,6 @@ io.on('connection', (socket) => {
         if (player) {
             logger.info(`🔌 Disconnected: ${player.username} (${socket.id})`);
 
-            // إذا كان في غرفة
             if (player.roomId) {
                 try {
                     const roomResult = await pool.query(
@@ -2510,7 +2344,6 @@ io.on('connection', (socket) => {
                         const status = roomResult.rows[0].status;
 
                         if (status === 'waiting') {
-                            // إعادة الرصيد عند المغادرة قبل البدء
                             const rpResult = await pool.query(
                                 `DELETE FROM room_players
                                  WHERE room_id = $1 AND user_id = $2
@@ -2546,7 +2379,6 @@ io.on('connection', (socket) => {
                             await sendRoomsListToAll();
 
                         } else if (status === 'active') {
-                            // إزالة اللاعب من المعركة
                             await pool.query(
                                 `UPDATE room_players SET is_alive = FALSE, left_at = CURRENT_TIMESTAMP
                                  WHERE room_id = $1 AND user_id = $2`,
@@ -2559,7 +2391,6 @@ io.on('connection', (socket) => {
                                 reason: 'disconnected_during_game',
                             });
 
-                            // التحقق من انتهاء اللعبة
                             const aliveResult = await pool.query(
                                 `SELECT COUNT(*) FROM room_players
                                  WHERE room_id = $1 AND is_alive = TRUE AND left_at IS NULL`,
@@ -2579,13 +2410,11 @@ io.on('connection', (socket) => {
                 }
             }
 
-            // تحديث الجلسة
             await pool.query(
                 'UPDATE sessions SET socket_id = NULL, last_activity = CURRENT_TIMESTAMP WHERE user_id = $1',
                 [player.userId]
             );
 
-            // إزالة من الذاكرة
             players.delete(socket.id);
             lastMoveTime.delete(socket.id);
             lastShotTime.delete(socket.id);
@@ -2597,12 +2426,12 @@ io.on('connection', (socket) => {
 // 🌐 API Routes المتقدمة
 // ================================================================
 
-// ✅ التحقق من صحة الخادم (مع معلومات متقدمة)
+// ✅ التحقق من صحة الخادم
 app.get('/health', (req, res) => {
     res.json({
         status: 'online',
         timestamp: Date.now(),
-        version: '6.0.0',
+        version: '6.1.0',
         connections: io.engine.clientsCount,
         rooms: rooms.size,
         activeGames: gameStates.size,
@@ -2661,7 +2490,7 @@ app.get('/api/stats/:telegramId', async (req, res) => {
     }
 });
 
-// ✅ API للمشرفين (مع تحقق متقدم)
+// ✅ API للمشرفين - إيداع
 app.post('/api/admin/deposit', async (req, res) => {
     try {
         const { adminToken, targetTelegramId, amount, reason } = req.body;
@@ -2713,7 +2542,7 @@ app.post('/api/admin/deposit', async (req, res) => {
     }
 });
 
-// ✅ API للمشرفين - حظر لاعب
+// ✅ API للمشرفين - حظر
 app.post('/api/admin/ban', async (req, res) => {
     try {
         const { adminToken, targetTelegramId, reason, duration } = req.body;
@@ -2814,7 +2643,7 @@ app.post('/api/admin/unban', async (req, res) => {
     }
 });
 
-// ✅ API للحصول على إحصائيات المشرف
+// ✅ API لإحصائيات المشرف
 app.get('/api/admin/stats', async (req, res) => {
     try {
         const { adminToken } = req.query;
@@ -2852,7 +2681,7 @@ app.get('/api/admin/stats', async (req, res) => {
     }
 });
 
-// ✅ API للحصول على قائمة الغرف (للمشرف)
+// ✅ API لقائمة الغرف (للمشرف)
 app.get('/api/admin/rooms', async (req, res) => {
     try {
         const { adminToken } = req.query;
@@ -2880,7 +2709,7 @@ app.get('/api/admin/rooms', async (req, res) => {
     }
 });
 
-// ✅ API لتحديث إعدادات الغرف (للمشرف)
+// ✅ API لتحديث إعدادات الغرف
 app.post('/api/admin/update_room_type', async (req, res) => {
     try {
         const { adminToken, typeName, maxSeats, seatPrice } = req.body;
@@ -2893,13 +2722,11 @@ app.post('/api/admin/update_room_type', async (req, res) => {
             return res.status(400).json({ success: false, error: 'Invalid parameters' });
         }
 
-        // تحديث جميع الغرف من هذا النوع
         await pool.query(
             `UPDATE rooms SET max_seats = $1, seat_price = $2 WHERE type = $3`,
             [maxSeats, seatPrice, typeName]
         );
 
-        // تحديث في الذاكرة
         for (const [id, room] of rooms) {
             if (room.type === typeName) {
                 room.maxSeats = maxSeats;
@@ -2907,7 +2734,6 @@ app.post('/api/admin/update_room_type', async (req, res) => {
             }
         }
 
-        // تسجيل التدقيق
         await logAudit(
             null,
             'admin_update_room_type',
@@ -2930,7 +2756,7 @@ app.post('/api/admin/update_room_type', async (req, res) => {
 });
 
 // ================================================================
-// 🚀 مسار اللعبة (مع استخلاص معرف تيليغرام)
+// 🚀 مسار اللعبة
 // ================================================================
 app.get('/game', (req, res) => {
     const { user_id } = req.query;
@@ -2948,19 +2774,16 @@ let isDbReady = false;
 
 async function startServer() {
     try {
-        // تهيئة قاعدة البيانات
         await initializeDatabase();
         isDbReady = true;
 
-        // تهيئة الغرف
         await initializeRooms();
 
-        // تشغيل الخادم
         server.listen(PORT, () => {
             console.log(`
 ╔═══════════════════════════════════════════════════════════════════════════╗
 ║                                                                           ║
-║           🎮 BATTLE TANKS ELITE v6.0 - READY FOR PRODUCTION 🎮           ║
+║           🎮 BATTLE TANKS ELITE v6.1 - READY FOR PRODUCTION 🎮           ║
 ║                                                                           ║
 ╠═══════════════════════════════════════════════════════════════════════════╣
 ║  📡 Server:        http://localhost:${PORT}
@@ -2969,7 +2792,7 @@ async function startServer() {
 ║  🏠 Rooms:         ${rooms.size} rooms (${ROOM_TYPES.length} types × ${ROOMS_PER_TYPE} each)
 ║  👥 Connections:   ${io.engine.clientsCount}
 ║  ⏱️  Game Duration: ${parseInt(process.env.GAME_DURATION) / 1000 || 300} seconds
-║  🚀 Version:       6.0.0
+║  🚀 Version:       6.1.0
 ║  🔐 Security:      JWT + Rate Limit + Slow Down + Helmet
 ║  📊 Queue System:  Active
 ║                                                                           ║
@@ -2989,7 +2812,6 @@ async function startServer() {
 async function shutdown() {
     logger.info('🛑 Shutting down gracefully...');
 
-    // إزالة جميع المؤقتات
     for (const [roomId, timer] of roomTimers) {
         clearTimeout(timer);
     }
@@ -3000,15 +2822,12 @@ async function shutdown() {
     }
     roomIntervals.clear();
 
-    // تنظيف الطوابير
     actionQueue.clear();
 
-    // إغلاق اتصالات Socket.io
     io.close(() => {
         logger.info('✅ Socket.io closed');
     });
 
-    // إغلاق اتصال قاعدة البيانات
     await pool.end();
     logger.info('✅ Database connection closed');
 
